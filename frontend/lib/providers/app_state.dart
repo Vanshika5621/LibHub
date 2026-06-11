@@ -1,0 +1,322 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+import '../models/book.dart';
+import '../models/profile.dart';
+import '../models/borrow.dart';
+import '../models/reserve.dart';
+import '../models/goal.dart';
+import '../models/notification.dart';
+import '../models/chat_message.dart';
+import '../models/fine.dart';
+import '../models/payment.dart';
+import '../services/supabase_service.dart';
+
+class AppState extends ChangeNotifier {
+  final SupabaseService _service = SupabaseService();
+  SupabaseService get service => _service;
+
+  // Auth
+  bool get isLoggedIn => _service.currentUser != null;
+  sb.User? get currentUser => _service.currentUser;
+
+  // State
+  Profile? _profile;
+  List<Book> _books = [];
+  List<Borrow> _borrows = [];
+  List<Reserve> _reserves = [];
+  List<String> _wishlistIds = [];
+  List<Fine> _fines = [];
+  List<Payment> _payments = [];
+  ReadingGoal? _readingGoal;
+  List<NotificationModel> _notifications = [];
+  NotificationPreferences? _notificationPrefs;
+  List<ChatMessage> _chatMessages = [];
+  bool _isDarkMode = false;
+  bool _isLoading = false;
+  String? _error;
+
+  // Getters
+  Profile? get profile => _profile;
+  List<Book> get books => _books;
+  List<Borrow> get borrows => _borrows;
+  List<Reserve> get reserves => _reserves;
+  List<String> get wishlistIds => _wishlistIds;
+  List<Fine> get fines => _fines;
+  List<Payment> get payments => _payments;
+  ReadingGoal? get readingGoal => _readingGoal;
+  List<NotificationModel> get notifications => _notifications;
+  NotificationPreferences? get notificationPrefs => _notificationPrefs;
+  List<ChatMessage> get chatMessages => _chatMessages;
+  bool get isDarkMode => _isDarkMode;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
+  int get activeBorrowsCount => _borrows.where((b) => b.status == 'active').length;
+  int get activeReservesCount => _reserves.where((r) => r.status == 'waiting' || r.status == 'ready').length;
+  int get unpaidFinesCount => _fines.where((f) => !f.paid && !f.waived).length;
+  int get unreadNotificationsCount => _notifications.where((n) => !n.read).length;
+  List<Book> get trendingBooks => _books.where((b) => b.isTrending).take(6).toList();
+  List<Book> get newArrivals => _books.where((b) => b.isNewArrival).take(6).toList();
+
+  void setLoading(bool v) {
+    _isLoading = v;
+    notifyListeners();
+  }
+
+  void setError(String? msg) {
+    _error = msg;
+    notifyListeners();
+  }
+
+  void toggleDarkMode() {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+  }
+
+  // Load initial data after login
+  Future<void> loadUserData() async {
+    if (!isLoggedIn) return;
+    setLoading(true);
+    try {
+      final results = await Future.wait([
+        _service.getProfile(),
+        _service.getBooks(),
+        _service.getUserBorrows(),
+        _service.getUserReserves(),
+        _service.getWishlistIds(),
+        _service.getUserFines(),
+        _service.getUserPayments(),
+        _service.getReadingGoal(DateTime.now().year),
+        _service.getUserNotifications(),
+        _service.getNotificationPreferences(),
+        _service.getChatMessages(),
+      ]);
+      _profile = results[0] as Profile?;
+      _books = results[1] as List<Book>;
+      _borrows = results[2] as List<Borrow>;
+      _reserves = results[3] as List<Reserve>;
+      _wishlistIds = results[4] as List<String>;
+      _fines = results[5] as List<Fine>;
+      _payments = results[6] as List<Payment>;
+      _readingGoal = results[7] as ReadingGoal?;
+      _notifications = results[8] as List<NotificationModel>;
+      _notificationPrefs = results[9] as NotificationPreferences?;
+      _chatMessages = results[10] as List<ChatMessage>;
+    } catch (e) {
+      setError(e.toString());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load only books (for catalog refresh)
+  Future<void> reloadBooks({
+    String query = '',
+    String genre = '',
+    bool onlyAvailable = false,
+    String sortBy = 'rating',
+  }) async {
+    setLoading(true);
+    try {
+      _books = await _service.getBooks(
+        query: query,
+        genre: genre,
+        onlyAvailable: onlyAvailable,
+        sortBy: sortBy,
+      );
+    } catch (e) {
+      setError(e.toString());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Refresh borrows
+  Future<void> reloadBorrows() async {
+    try {
+      _borrows = await _service.getUserBorrows();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  // Refresh reserves
+  Future<void> reloadReserves() async {
+    try {
+      _reserves = await _service.getUserReserves();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  // Refresh fines
+  Future<void> reloadFines() async {
+    try {
+      _fines = await _service.getUserFines();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  // Toggle Wishlist
+  Future<void> toggleWishlist(String bookId) async {
+    final isWishlisted = _wishlistIds.contains(bookId);
+    if (isWishlisted) {
+      _wishlistIds.remove(bookId);
+      notifyListeners();
+      await _service.removeFromWishlist(bookId);
+    } else {
+      _wishlistIds.add(bookId);
+      notifyListeners();
+      await _service.addToWishlist(bookId);
+    }
+  }
+
+  // Borrow
+  Future<Map<String, dynamic>> borrowBook(String bookId) async {
+    final result = await _service.borrowBook(bookId);
+    if (result['success'] == true) {
+      await reloadBorrows();
+      // Update available copies locally
+      final idx = _books.indexWhere((b) => b.id == bookId);
+      if (idx >= 0) {
+        final book = _books[idx];
+        _books[idx] = Book(
+          id: book.id, title: book.title, author: book.author,
+          publisher: book.publisher, description: book.description,
+          coverImage: book.coverImage, genre: book.genre,
+          language: book.language, pages: book.pages,
+          publishedYear: book.publishedYear, isbn: book.isbn,
+          totalCopies: book.totalCopies,
+          availableCopies: book.availableCopies - 1,
+          rating: book.rating, ratingCount: book.ratingCount,
+          isTrending: book.isTrending, isNewArrival: book.isNewArrival,
+          createdAt: book.createdAt,
+        );
+        notifyListeners();
+      }
+    }
+    return result;
+  }
+
+  // Return
+  Future<Map<String, dynamic>> returnBook(String borrowId) async {
+    final result = await _service.returnBook(borrowId);
+    if (result['success'] == true) {
+      await reloadBorrows();
+      await reloadFines();
+    }
+    return result;
+  }
+
+  // Renew
+  Future<Map<String, dynamic>> renewBook(String borrowId) async {
+    final result = await _service.renewBook(borrowId);
+    if (result['success'] == true) await reloadBorrows();
+    return result;
+  }
+
+  // Reserve
+  Future<Map<String, dynamic>> reserveBook(String bookId) async {
+    final result = await _service.reserveBook(bookId);
+    if (result['success'] == true) await reloadReserves();
+    return result;
+  }
+
+  // Cancel Reserve
+  Future<Map<String, dynamic>> cancelReserve(String reserveId) async {
+    final result = await _service.cancelReserve(reserveId);
+    if (result['success'] == true) await reloadReserves();
+    return result;
+  }
+
+  // Mark notification as read
+  Future<void> markNotificationRead(String id) async {
+    await _service.markNotificationAsRead(id);
+    final idx = _notifications.indexWhere((n) => n.id == id);
+    if (idx >= 0) {
+      final n = _notifications[idx];
+      _notifications[idx] = NotificationModel(
+        id: n.id, userId: n.userId, type: n.type,
+        title: n.title, message: n.message,
+        read: true, metadata: n.metadata, createdAt: n.createdAt,
+      );
+      notifyListeners();
+    }
+  }
+
+  // Update Notification Preferences
+  Future<void> updateNotificationPrefs(Map<String, dynamic> updates) async {
+    final prefs = await _service.updateNotificationPreferences(updates);
+    _notificationPrefs = prefs;
+    notifyListeners();
+  }
+
+  // Send AI message
+  Future<void> sendChatMessage(String content) async {
+    final userMsg = ChatMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      userId: currentUser?.id ?? '',
+      role: 'user',
+      content: content,
+      createdAt: DateTime.now(),
+    );
+    _chatMessages.add(userMsg);
+    notifyListeners();
+
+    // Save user message to Supabase
+    if (isLoggedIn) {
+      await _service.saveChatMessage('user', content);
+    }
+
+    // Get AI response from backend
+    final result = await _service.getAIResponse(content);
+    final aiContent = result['message'] as String? ??
+        result['reply'] as String? ??
+        'I\'m sorry, I couldn\'t process your request right now.';
+
+    final aiMsg = ChatMessage(
+      id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
+      userId: 'assistant',
+      role: 'assistant',
+      content: aiContent,
+      createdAt: DateTime.now(),
+    );
+    _chatMessages.add(aiMsg);
+
+    if (isLoggedIn) {
+      await _service.saveChatMessage('assistant', aiContent);
+    }
+
+    notifyListeners();
+  }
+
+  // Update Reading Goal
+  Future<void> updateReadingGoal(int yearlyGoal, int monthlyGoal) async {
+    if (_readingGoal == null) return;
+    _readingGoal = await _service.updateReadingGoal(
+      DateTime.now().year, yearlyGoal, monthlyGoal,
+    );
+    notifyListeners();
+  }
+
+  // Update Profile
+  Future<void> updateProfile(Map<String, dynamic> updates) async {
+    _profile = await _service.updateProfile(updates);
+    notifyListeners();
+  }
+
+  // Sign Out
+  Future<void> signOut() async {
+    await _service.signOut();
+    _profile = null;
+    _books = [];
+    _borrows = [];
+    _reserves = [];
+    _wishlistIds = [];
+    _fines = [];
+    _payments = [];
+    _readingGoal = null;
+    _notifications = [];
+    _notificationPrefs = null;
+    _chatMessages = [];
+    notifyListeners();
+  }
+}

@@ -1,41 +1,58 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.g.dart
+*.freezed.dart
+lib/generated_plugin_registrant.dart
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Android
+android/.gradle/
+android/captures/
+android/local.properties
+android/key.properties
+*.keystore
+*.jks
 
-# testing
-/coverage
+# iOS
+ios/.symlinks/
+ios/Pods/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/flutter_assets/
 
-# next.js
-/.next/
-/out/
+# macOS
+macos/Flutter/GeneratedPluginRegistrant.swift
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Next.js backend
+.next/
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Environment
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
 
-# vercel
-.vercel
+# Misc
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Pub
+.pub-cache/
+.pub/
