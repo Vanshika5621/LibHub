@@ -28,9 +28,28 @@ class SupabaseService {
         if (accessToken != null) 'Authorization': 'Bearer $accessToken',
       };
 
-  // Sign In
-  Future<sb.AuthResponse> signIn(String email, String password) async {
-    return await _client.auth.signInWithPassword(email: email, password: password);
+  // Sign In via Backend
+  Future<void> signIn(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('${AppConstants.backendBaseUrl}/api/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'email': email,
+        'password': password,
+      }),
+    );
+
+    final result = json.decode(response.body);
+
+    if (response.statusCode != 200 || result['success'] != true) {
+      throw Exception(result['error'] ?? 'Sign in failed. Check your credentials.');
+    }
+
+    // Set session in local Supabase client so subsequent calls are authenticated
+    final session = result['session'];
+    if (session != null) {
+      await _client.auth.setSession(session['access_token']);
+    }
   }
 
   // Register via Backend Admin API (bypasses email confirmation requirement)

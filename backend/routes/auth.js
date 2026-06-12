@@ -76,4 +76,33 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    const serviceClient = createServiceClient();
+    const { data, error } = await serviceClient.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password,
+    });
+
+    if (error) {
+      return res.status(401).json({ error: error.message });
+    }
+
+    return res.json({
+      success: true,
+      session: data.session,
+      user: data.user,
+    });
+  } catch (error) {
+    console.error('Login route error:', error);
+    return res.status(500).json({ error: 'Internal server error during login.' });
+  }
+});
+
 module.exports = router;
