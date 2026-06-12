@@ -38,12 +38,10 @@ class AppTheme {
         primary: primaryColor,
         secondary: secondaryColor,
         surface: lightSurface,
-        background: lightBg,
         error: errorColor,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: lightTextPrimary,
-        onBackground: lightTextPrimary,
       ),
       textTheme: GoogleFonts.interTextTheme(
         const TextTheme(
@@ -149,12 +147,10 @@ class AppTheme {
         primary: primaryColor,
         secondary: secondaryColor,
         surface: darkSurface,
-        background: darkBg,
         error: errorColor,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         onSurface: darkTextPrimary,
-        onBackground: darkTextPrimary,
       ),
       textTheme: GoogleFonts.interTextTheme(
         const TextTheme(

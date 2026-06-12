@@ -10,10 +10,16 @@ import '../models/chat_message.dart';
 import '../models/fine.dart';
 import '../models/payment.dart';
 import '../services/supabase_service.dart';
+import '../services/payment_service.dart';
 
 class AppState extends ChangeNotifier {
   final SupabaseService _service = SupabaseService();
   SupabaseService get service => _service;
+
+  AppState() {
+    // Load public books immediately so guests see catalog without signing in
+    reloadBooks();
+  }
 
   // Auth
   bool get isLoggedIn => _service.currentUser != null;
@@ -34,6 +40,8 @@ class AppState extends ChangeNotifier {
   bool _isDarkMode = false;
   bool _isLoading = false;
   String? _error;
+  int _currentTabIndex = 0;
+  String _catalogSearchQuery = '';
 
   // Getters
   Profile? get profile => _profile;
@@ -50,6 +58,31 @@ class AppState extends ChangeNotifier {
   bool get isDarkMode => _isDarkMode;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  int get currentTabIndex => _currentTabIndex;
+  String get catalogSearchQuery => _catalogSearchQuery;
+
+  void setTabIndex(int index) {
+    _currentTabIndex = index;
+    notifyListeners();
+  }
+
+  void searchFromDashboard(String query) {
+    _catalogSearchQuery = query;
+    _currentTabIndex = 1; // Books Catalog Tab
+    notifyListeners();
+    reloadBooks(query: query);
+  }
+
+  void setCatalogSearchQuery(String query) {
+    _catalogSearchQuery = query;
+    notifyListeners();
+  }
+
+  void clearSearchQuery() {
+    _catalogSearchQuery = '';
+    notifyListeners();
+    reloadBooks(query: '');
+  }
 
   int get activeBorrowsCount => _borrows.where((b) => b.status == 'active').length;
   int get activeReservesCount => _reserves.where((r) => r.status == 'waiting' || r.status == 'ready').length;
@@ -268,8 +301,14 @@ class AppState extends ChangeNotifier {
 
     // Get AI response from backend
     final result = await _service.getAIResponse(content);
-    final aiContent = result['message'] as String? ??
-        result['reply'] as String? ??
+    String? aiContent;
+    if (result['message'] is Map) {
+      aiContent = result['message']['content'] as String?;
+    } else if (result['message'] is String) {
+      aiContent = result['message'] as String;
+    }
+    aiContent ??= result['reply'] as String? ??
+        result['error'] as String? ??
         'I\'m sorry, I couldn\'t process your request right now.';
 
     final aiMsg = ChatMessage(
@@ -286,6 +325,131 @@ class AppState extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  // Upgrade membership using Razorpay
+  Future<void> upgradeMembership(String tier, double amount, BuildContext context) async {
+    if (!isLoggedIn || _profile == null) return;
+
+    final paymentService = PaymentService(_service);
+    paymentService.onSuccess = (response) async {
+      // Show local loading or status
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Verifying payment... Please wait.'),
+        duration: Duration(seconds: 2),
+      ));
+      
+      final verifyResult = await paymentService.verifyPayment(
+        razorpayOrderId: response.orderId ?? '',
+        razorpayPaymentId: response.paymentId ?? '',
+        razorpaySignature: response.signature ?? '',
+        internalPaymentId: '',
+      );
+
+      if (verifyResult['success'] == true) {
+        await loadUserData();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Plan successfully upgraded to ${tier.toUpperCase()}! 🚀'),
+          backgroundColor: AppTheme.successColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(verifyResult['error'] ?? 'Payment verification failed'),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      paymentService.dispose();
+    };
+
+    paymentService.onFailure = (response) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Payment failed: ${response.message}'),
+        backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+      ));
+      paymentService.dispose();
+    };
+
+    final result = await paymentService.openCheckout(
+      amount: amount,
+      paymentType: 'membership',
+      membershipTier: tier,
+      userName: _profile!.fullName,
+      userEmail: _profile!.email,
+      userPhone: _profile!.phone ?? '9999999999',
+    );
+
+    if (result.containsKey('error')) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result['error'] ?? 'Failed to open payment gateway'),
+        backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  // Pay fine using Razorpay
+  Future<void> payFine(String fineId, double amount, BuildContext context) async {
+    if (!isLoggedIn || _profile == null) return;
+
+    final paymentService = PaymentService(_service);
+    paymentService.onSuccess = (response) async {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Verifying fine payment... Please wait.'),
+        duration: Duration(seconds: 2),
+      ));
+
+      final verifyResult = await paymentService.verifyPayment(
+        razorpayOrderId: response.orderId ?? '',
+        razorpayPaymentId: response.paymentId ?? '',
+        razorpaySignature: response.signature ?? '',
+        internalPaymentId: '',
+      );
+
+      if (verifyResult['success'] == true) {
+        await loadUserData();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Fine paid successfully! 💰'),
+          backgroundColor: AppTheme.successColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(verifyResult['error'] ?? 'Verification failed'),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      paymentService.dispose();
+    };
+
+    paymentService.onFailure = (response) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Payment failed: ${response.message}'),
+        backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+      ));
+      paymentService.dispose();
+    };
+
+    final result = await paymentService.openCheckout(
+      amount: amount,
+      paymentType: 'fine',
+      fineId: fineId,
+      userName: _profile!.fullName,
+      userEmail: _profile!.email,
+      userPhone: _profile!.phone ?? '9999999999',
+    );
+
+    if (result.containsKey('error')) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result['error'] ?? 'Failed to open payment gateway'),
+        backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   // Update Reading Goal

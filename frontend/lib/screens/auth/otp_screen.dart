@@ -27,8 +27,12 @@ class _OTPScreenState extends State<OTPScreen> {
 
   @override
   void dispose() {
-    for (final c in _ctrls) c.dispose();
-    for (final f in _foci) f.dispose();
+    for (final c in _ctrls) {
+      c.dispose();
+    }
+    for (final f in _foci) {
+      f.dispose();
+    }
     super.dispose();
   }
 

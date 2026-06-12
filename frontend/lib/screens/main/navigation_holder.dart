@@ -49,7 +49,7 @@ class _NavigationHolderState extends State<NavigationHolder> {
 
     return Scaffold(
       body: IndexedStack(
-        index: _selectedIndex,
+        index: state.currentTabIndex,
         children: _screens,
       ),
       bottomNavigationBar: Container(
@@ -60,8 +60,8 @@ class _NavigationHolderState extends State<NavigationHolder> {
           )),
         ),
         child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: (i) => setState(() => _selectedIndex = i),
+          currentIndex: state.currentTabIndex,
+          onTap: (i) => state.setTabIndex(i),
           items: [
             const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home_rounded), label: 'Home'),
             const BottomNavigationBarItem(icon: Icon(Icons.menu_book_outlined), activeIcon: Icon(Icons.menu_book_rounded), label: 'Books'),

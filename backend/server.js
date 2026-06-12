@@ -1,9 +1,9 @@
-require('dotenv').config({ path: '.env.local' });
-require('dotenv').config(); // Fallback to .env
+require('dotenv').config(); // Load from .env
 
 const express = require('express');
 const cors = require('cors');
 
+const authRoutes = require('./routes/auth');
 const otpRoutes = require('./routes/otp');
 const booksRoutes = require('./routes/books');
 const razorpayRoutes = require('./routes/razorpay');
@@ -22,6 +22,7 @@ app.get('/', (req, res) => {
 });
 
 // Register routes
+app.use('/api/auth', authRoutes);
 app.use('/api/otp', otpRoutes);
 app.use('/api/books', booksRoutes);
 app.use('/api/razorpay', razorpayRoutes);

@@ -29,11 +29,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
   @override
   void initState() {
     super.initState();
+    final state = context.read<AppState>();
+    _searchCtrl.text = state.catalogSearchQuery;
+    _query = state.catalogSearchQuery;
     WidgetsBinding.instance.addPostFrameCallback((_) => _applyFilters());
   }
 
   void _applyFilters() {
-    context.read<AppState>().reloadBooks(
+    final state = context.read<AppState>();
+    state.setCatalogSearchQuery(_query);
+    state.reloadBooks(
       query: _query, genre: _genre, onlyAvailable: _onlyAvailable, sortBy: _sortBy,
     );
   }
@@ -42,6 +47,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final theme = Theme.of(context);
+
+    // Sync query if changed from dashboard
+    if (_query != state.catalogSearchQuery) {
+      _query = state.catalogSearchQuery;
+      _searchCtrl.text = state.catalogSearchQuery;
+      _searchCtrl.selection = TextSelection.fromPosition(
+        TextPosition(offset: _searchCtrl.text.length),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(

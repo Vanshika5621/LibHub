@@ -155,7 +155,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   // Action Buttons
                   if (state.isLoggedIn) ...[
                     if (isAlreadyBorrowed)
-                      _InfoBanner(label: 'You have borrowed this book', icon: Icons.check_circle_rounded, color: AppTheme.successColor)
+                      const _InfoBanner(label: 'You have borrowed this book', icon: Icons.check_circle_rounded, color: AppTheme.successColor)
                     else if (book.availableCopies > 0)
                       SizedBox(
                         width: double.infinity, height: 50,
@@ -166,7 +166,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                         ),
                       )
                     else if (isAlreadyReserved)
-                      _InfoBanner(label: 'You have reserved this book', icon: Icons.bookmark_rounded, color: AppTheme.secondaryColor)
+                      const _InfoBanner(label: 'You have reserved this book', icon: Icons.bookmark_rounded, color: AppTheme.secondaryColor)
                     else
                       SizedBox(
                         width: double.infinity, height: 50,
@@ -178,7 +178,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                       ),
                     const SizedBox(height: 12),
                   ] else
-                    _InfoBanner(label: 'Sign in to borrow or reserve this book', icon: Icons.login_rounded, color: AppTheme.primaryColor),
+                    const _InfoBanner(label: 'Sign in to borrow or reserve this book', icon: Icons.login_rounded, color: AppTheme.primaryColor),
 
                   const SizedBox(height: 20),
                   // Book Info

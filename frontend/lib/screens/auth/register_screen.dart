@@ -44,7 +44,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() { _loading = true; _errorMsg = null; });
     try {
       final state = context.read<AppState>();
-      await state.service.signUp(
+      // Step 1: Register via backend admin API (email is pre-confirmed automatically)
+      await state.service.registerViaBackend(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
         firstName: _firstCtrl.text.trim(),
@@ -53,13 +54,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         address: _addressCtrl.text.trim(),
         city: _cityCtrl.text.trim(),
       );
-      await state.service.signIn(_emailCtrl.text.trim(), _passwordCtrl.text);
+      // Step 2: Now sign in normally (works because email is already confirmed)
+      // Add a timeout to avoid indefinite loading when network/backend is unreachable
+      await state.service
+          .signIn(_emailCtrl.text.trim(), _passwordCtrl.text)
+          .timeout(const Duration(seconds: 15));
       await state.loadUserData();
       if (mounted) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OTPScreen()));
       }
     } catch (e) {
-      setState(() => _errorMsg = e.toString().replaceAll('Exception: ', ''));
+      final raw = e.toString();
+      String friendly;
+      if (raw.contains('TimeoutException') || raw.contains('timed out') || raw.contains('SocketException') || raw.contains('AuthRetryableFetchException')) {
+        friendly = 'Network error: Unable to reach authentication server. Check your internet connection and backend/supabase configuration.';
+      } else {
+        friendly = raw.replaceAll('Exception: ', '');
+      }
+      setState(() => _errorMsg = friendly);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

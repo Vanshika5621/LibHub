@@ -60,7 +60,7 @@ class _BorrowedScreenState extends State<BorrowedScreen> with SingleTickerProvid
           children: [
             // Borrowed Tab
             activeBorrows.isEmpty
-                ? _EmptyState(icon: Icons.library_books_outlined, message: 'No active borrows', sub: 'Head to the catalog to borrow books')
+                ? const _EmptyState(icon: Icons.library_books_outlined, message: 'No active borrows', sub: 'Head to the catalog to borrow books')
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: activeBorrows.length,
@@ -68,7 +68,7 @@ class _BorrowedScreenState extends State<BorrowedScreen> with SingleTickerProvid
                   ),
             // Reserves Tab
             reserves.isEmpty
-                ? _EmptyState(icon: Icons.bookmark_outline_rounded, message: 'No active reserves', sub: 'Reserve an unavailable book from its detail page')
+                ? const _EmptyState(icon: Icons.bookmark_outline_rounded, message: 'No active reserves', sub: 'Reserve an unavailable book from its detail page')
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: reserves.length,

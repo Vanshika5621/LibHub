@@ -74,7 +74,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
         children: [
           Expanded(
             child: messages.isEmpty
-                ? _WelcomeState()
+                ? _WelcomeState(onSelectSuggestion: (text) {
+                    _inputCtrl.text = text;
+                    _send();
+                  })
                 : ListView.builder(
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.all(16),
@@ -227,6 +230,9 @@ class _TypingIndicator extends StatelessWidget {
 }
 
 class _WelcomeState extends StatelessWidget {
+  final Function(String) onSelectSuggestion;
+  const _WelcomeState({required this.onSelectSuggestion});
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -247,10 +253,10 @@ class _WelcomeState extends StatelessWidget {
         Text('Ask me about books, policies, FAQs,\nor get personalized recommendations!', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
         const SizedBox(height: 28),
         Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-          _QuickChip(label: '📚 Book recommendations'),
-          _QuickChip(label: '📋 Library policies'),
-          _QuickChip(label: '❓ How to borrow'),
-          _QuickChip(label: '⭐ Top rated books'),
+          _QuickChip(label: '📚 Book recommendations', onTap: () => onSelectSuggestion('Recommend a book')),
+          _QuickChip(label: '📋 Library policies', onTap: () => onSelectSuggestion('What is the borrowing limit?')),
+          _QuickChip(label: '❓ How to borrow', onTap: () => onSelectSuggestion('How to borrow a book?')),
+          _QuickChip(label: '⭐ Top rated books', onTap: () => onSelectSuggestion('Give me book recommendations')),
         ]),
       ]),
     );
@@ -259,13 +265,14 @@ class _WelcomeState extends StatelessWidget {
 
 class _QuickChip extends StatelessWidget {
   final String label;
-  const _QuickChip({required this.label});
+  final VoidCallback onTap;
+  const _QuickChip({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
