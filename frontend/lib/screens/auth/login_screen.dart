@@ -32,8 +32,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() { _loading = true; _errorMsg = null; });
     try {
       final state = context.read<AppState>();
+      await state.service.signOut();
       await state.service.signIn(_emailCtrl.text.trim(), _passwordCtrl.text);
       await state.loadUserData();
+      
+      if (state.isLoggedIn && state.profile == null) {
+        throw Exception('Account found, but profile data is missing. Please contact support.');
+      }
     } catch (e) {
       setState(() { _errorMsg = e.toString().replaceAll('Exception: ', ''); });
     } finally {

@@ -28,28 +28,12 @@ class SupabaseService {
         if (accessToken != null) 'Authorization': 'Bearer $accessToken',
       };
 
-  // Sign In via Backend
-  Future<void> signIn(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('${AppConstants.backendBaseUrl}/api/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'email': email,
-        'password': password,
-      }),
+  // Reverted to direct Supabase login for stability
+  Future<sb.AuthResponse> signIn(String email, String password) async {
+    return await _client.auth.signInWithPassword(
+      email: email.toLowerCase().trim(),
+      password: password,
     );
-
-    final result = json.decode(response.body);
-
-    if (response.statusCode != 200 || result['success'] != true) {
-      throw Exception(result['error'] ?? 'Sign in failed. Check your credentials.');
-    }
-
-    // Set session in local Supabase client so subsequent calls are authenticated
-    final session = result['session'];
-    if (session != null) {
-      await _client.auth.setSession(session['access_token']);
-    }
   }
 
   // Register via Backend Admin API (bypasses email confirmation requirement)
@@ -123,8 +107,8 @@ class SupabaseService {
     final user = currentUser;
     if (user == null) return null;
     try {
-      // Try twice with a small delay for profile to appear (DB replication sync)
-      for (int i = 0; i < 2; i++) {
+      // Try multiple times with a delay for profile to appear (DB replication sync)
+      for (int i = 0; i < 4; i++) {
         final response = await _client
             .from('profiles')
             .select()
@@ -134,7 +118,8 @@ class SupabaseService {
         if (response != null) {
           return Profile.fromJson(response as Map<String, dynamic>);
         }
-        if (i == 0) await Future.delayed(const Duration(milliseconds: 800));
+        print('Profile not found yet, retrying... (Attempt ${i + 1}/4)');
+        await Future.delayed(Duration(milliseconds: 1000 + (i * 500)));
       }
       return null;
     } catch (e) {
