@@ -72,6 +72,20 @@ Choose a plan that fits your reading habits:
 You can upgrade anytime using Razorpay in the **Profile** section.`;
   }
 
+  if (msg.includes('info') || msg.includes('tell me about') || msg.includes('what is libhub') || msg.includes('about libhub')) {
+    return `### 🏫 Welcome to LibHub!
+LibHub is a modern digital library system designed to make reading accessible for everyone.
+
+**Core Features:**
+* 📚 **Borrow & Return:** Easily borrow hundreds of books and return them with one click.
+* 🔖 **Reservations:** If a book is busy, hold your spot in the queue.
+* 🤖 **AI Assistant:** Get instant support and book recommendations.
+* 💳 **Smart Plans:** Choose between Free, Premium, and VIP memberships for better limits.
+* 💰 **Fine Management:** Pay overdue fines directly within the app.
+
+Is there anything specific you'd like to know about our plans or policies?`;
+  }
+
   if (msg.includes('recommend') || msg.includes('suggest') || msg.includes('book') || msg.includes('read') || msg.includes('genre')) {
     return `### 📚 Recommended Books for You
 Based on popular genres and top ratings, here are our top recommendations:

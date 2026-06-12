@@ -15,7 +15,6 @@ class BookDetailScreen extends StatefulWidget {
 class _BookDetailScreenState extends State<BookDetailScreen> {
   Book? _book;
   bool _loading = true;
-  String? _actionResult;
   bool _actionLoading = false;
 
   @override
@@ -34,27 +33,28 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   }
 
   Future<void> _borrow() async {
-    setState(() { _actionLoading = true; _actionResult = null; });
+    setState(() => _actionLoading = true);
     final result = await context.read<AppState>().borrowBook(widget.bookId);
     if (mounted) {
       setState(() => _actionLoading = false);
       final msg = result['success'] == true
-          ? '✅ Book borrowed! Due: ${_formatDate(result['dueDate'])}'
-          : '❌ ${result['error'] ?? 'Something went wrong'}';
+          ? '✅ Book borrowed successfully!'
+          : '❌ ${result['error'] ?? 'Request failed'}';
       _showSnack(msg, result['success'] == true);
       if (result['success'] == true) _loadBook();
     }
   }
 
   Future<void> _reserve() async {
-    setState(() { _actionLoading = true; _actionResult = null; });
+    setState(() => _actionLoading = true);
     final result = await context.read<AppState>().reserveBook(widget.bookId);
     if (mounted) {
       setState(() => _actionLoading = false);
       final msg = result['success'] == true
-          ? '✅ Reserved! Queue position: #${result['queuePosition']}'
-          : '❌ ${result['error'] ?? 'Something went wrong'}';
+          ? '✅ Reserved! You are #${result['queuePosition']} in queue.'
+          : '❌ ${result['error'] ?? 'Request failed'}';
       _showSnack(msg, result['success'] == true);
+      if (result['success'] == true) _loadBook();
     }
   }
 
@@ -63,16 +63,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       content: Text(msg),
       backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
-  }
-
-  String _formatDate(dynamic raw) {
-    if (raw == null) return '';
-    try {
-      final dt = DateTime.parse(raw.toString());
-      return '${dt.day}/${dt.month}/${dt.year}';
-    } catch (_) { return raw.toString(); }
   }
 
   @override
@@ -80,8 +71,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     final state = context.watch<AppState>();
     final theme = Theme.of(context);
 
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppTheme.primaryColor)));
-    if (_book == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('Book not found')));
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_book == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('Book Details not found')));
 
     final book = _book!;
     final isWishlisted = state.wishlistIds.contains(book.id);
@@ -89,113 +80,61 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     final isAlreadyReserved = state.reserves.any((r) => r.bookId == book.id && (r.status == 'waiting' || r.status == 'ready'));
 
     return Scaffold(
+      bottomNavigationBar: _buildBottomActions(state, isAlreadyBorrowed, isAlreadyReserved),
       body: CustomScrollView(
         slivers: [
-          // Collapsible AppBar with cover image
           SliverAppBar(
-            expandedHeight: 300,
+            expandedHeight: 350,
             pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Hero(
+                tag: 'book_${book.id}',
+                child: book.coverImage != null && book.coverImage!.isNotEmpty
+                    ? Image.network(book.coverImage!, fit: BoxFit.cover)
+                    : Container(color: Colors.blueGrey, child: const Icon(Icons.book, size: 100, color: Colors.white)),
+              ),
+            ),
             actions: [
               IconButton(
-                icon: Icon(
-                  isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  color: isWishlisted ? AppTheme.errorColor : Colors.white,
-                ),
-                onPressed: state.isLoggedIn ? () => state.toggleWishlist(book.id) : null,
+                icon: Icon(isWishlisted ? Icons.favorite : Icons.favorite_border, color: Colors.red),
+                onPressed: () => state.toggleWishlist(book.id),
               ),
             ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: book.coverImage != null
-                  ? Image.network(book.coverImage!, fit: BoxFit.cover)
-                  : Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppTheme.primaryColor, Color(0xFF7C3AED)],
-                          begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 80),
-                    ),
-            ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Genre + availability badges
-                  Row(children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     _Badge(label: book.genre, color: AppTheme.primaryColor),
-                    const SizedBox(width: 8),
-                    _Badge(
-                      label: book.availableCopies > 0 ? '${book.availableCopies} Available' : 'Unavailable',
-                      color: book.availableCopies > 0 ? AppTheme.successColor : AppTheme.errorColor,
-                    ),
+                    Row(children: [
+                      const Icon(Icons.star_rounded, color: AppTheme.secondaryColor, size: 20),
+                      Text(book.rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ]),
                   ]),
-                  const SizedBox(height: 14),
-                  Text(book.title, style: theme.textTheme.titleLarge?.copyWith(fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Text(book.title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  Text('by ${book.author}', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 15)),
-                  const SizedBox(height: 12),
-                  // Rating Row
-                  Row(children: [
-                    ...List.generate(5, (i) => Icon(
-                      i < book.rating.round() ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: AppTheme.secondaryColor, size: 20,
-                    )),
-                    const SizedBox(width: 8),
-                    Text(book.rating.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(width: 4),
-                    Text('(${book.ratingCount} ratings)', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13)),
-                  ]),
-                  const SizedBox(height: 20),
-
-                  // Action Buttons
-                  if (state.isLoggedIn) ...[
-                    if (isAlreadyBorrowed)
-                      const _InfoBanner(label: 'You have borrowed this book', icon: Icons.check_circle_rounded, color: AppTheme.successColor)
-                    else if (book.availableCopies > 0)
-                      SizedBox(
-                        width: double.infinity, height: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: _actionLoading ? null : _borrow,
-                          icon: _actionLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.download_done_rounded),
-                          label: const Text('Borrow Now'),
-                        ),
-                      )
-                    else if (isAlreadyReserved)
-                      const _InfoBanner(label: 'You have reserved this book', icon: Icons.bookmark_rounded, color: AppTheme.secondaryColor)
-                    else
-                      SizedBox(
-                        width: double.infinity, height: 50,
-                        child: OutlinedButton.icon(
-                          onPressed: _actionLoading ? null : _reserve,
-                          icon: _actionLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.bookmark_add_rounded),
-                          label: const Text('Reserve Book'),
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                  ] else
-                    const _InfoBanner(label: 'Sign in to borrow or reserve this book', icon: Icons.login_rounded, color: AppTheme.primaryColor),
-
-                  const SizedBox(height: 20),
-                  // Book Info
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  Text('About this book', style: theme.textTheme.titleLarge?.copyWith(fontSize: 17)),
-                  const SizedBox(height: 8),
-                  Text(book.description ?? 'No description available.', style: theme.textTheme.bodyLarge?.copyWith(height: 1.6, fontSize: 15)),
+                  Text('by ${book.author}', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
                   const SizedBox(height: 24),
-                  // Metadata
-                  _MetaRow(label: 'Publisher', value: book.publisher ?? 'Unknown'),
-                  _MetaRow(label: 'Year', value: book.publishedYear?.toString() ?? '—'),
-                  _MetaRow(label: 'Pages', value: book.pages?.toString() ?? '—'),
-                  _MetaRow(label: 'Language', value: book.language),
-                  _MetaRow(label: 'ISBN', value: book.isbn ?? '—'),
-                  _MetaRow(label: 'Total Copies', value: '${book.totalCopies}'),
+                  
+                  // Metadata Grid
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    _MetaItem(label: 'Pages', value: '${book.pages ?? 320}'),
+                    _MetaItem(label: 'Language', value: book.language),
+                    _MetaItem(label: 'Year', value: '${book.publishedYear ?? 2021}'),
+                  ]),
+                  
                   const SizedBox(height: 32),
+                  const Text('About this book', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Text(
+                    book.description ?? 'No description provided.',
+                    style: TextStyle(fontSize: 15, color: Colors.grey.shade800, height: 1.6),
+                  ),
+                  const SizedBox(height: 100), // Extra space for FAB/BottomBar
                 ],
               ),
             ),
@@ -204,65 +143,76 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       ),
     );
   }
+
+  Widget _buildBottomActions(AppState state, bool borrowed, bool reserved) {
+    if (!state.isLoggedIn) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: Row(
+        children: [
+          if (borrowed)
+            const Expanded(child: _InfoBox(label: 'Borrowed', color: Colors.green))
+          else if (reserved)
+            const Expanded(child: _InfoBox(label: 'Reserved', color: Colors.orange))
+          else if (_book!.availableCopies > 0)
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _actionLoading ? null : _borrow,
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                child: _actionLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Borrow for Free', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            )
+          else
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _actionLoading ? null : _reserve,
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: Colors.orange, width: 2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                child: _actionLoading ? const CircularProgressIndicator() : const Text('Reserve (Out of Stock)', style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  final String label, value;
+  const _MetaItem({required this.label, required this.value});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+    const SizedBox(height: 4),
+    Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+  ]);
 }
 
 class _Badge extends StatelessWidget {
   final String label;
   final Color color;
   const _Badge({required this.label, required this.color});
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+    child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+  );
 }
 
-class _InfoBanner extends StatelessWidget {
+class _InfoBox extends StatelessWidget {
   final String label;
-  final IconData icon;
   final Color color;
-  const _InfoBanner({required this.label, required this.icon, required this.color});
-
+  const _InfoBox({required this.label, required this.color});
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13))),
-      ]),
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _MetaRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 110, child: Text(label, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13))),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-      ]),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: color)),
+    alignment: Alignment.center,
+    child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+  );
 }
