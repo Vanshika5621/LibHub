@@ -7,11 +7,24 @@ const router = express.Router();
 const OTP_EXPIRY_MINUTES = 5;
 
 // POST /api/otp/send
-router.post('/send', requireAuth, async (req, res) => {
+router.post('/send', async (req, res) => {
   try {
-    const user = req.user;
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
     const serviceClient = createServiceClient();
-    
+
+    // Check if user exists
+    const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
+    const user = existingUsers?.users?.find(u => u.email === email);
+
+    if (!user) {
+      return res.status(400).json({ error: 'No account found with this email. Please register first.' });
+    }
+
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
@@ -31,14 +44,10 @@ router.post('/send', requireAuth, async (req, res) => {
       return res.status(500).json({ error: insertError.message });
     }
 
-    const { data: profile } = await req.supabase
-      .from('profiles')
-      .select('first_name')
-      .eq('id', user.id)
-      .single();
+    const firstName = user.user_metadata?.first_name || 'User';
 
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      await sendOTPEmail(user.email, otp, profile?.first_name || 'User');
+      await sendOTPEmail(user.email, otp, firstName);
     } else {
       console.log(`[DEV] OTP for ${user.email}: ${otp}`);
     }
@@ -51,16 +60,27 @@ router.post('/send', requireAuth, async (req, res) => {
 });
 
 // POST /api/otp/verify
-router.post('/verify', requireAuth, async (req, res) => {
+router.post('/verify', async (req, res) => {
   try {
-    const { otp } = req.body;
-    const user = req.user;
+    const { email, otp } = req.body;
 
-    if (!otp || typeof otp !== 'string' || otp.length !== 4) {
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+
+    if (typeof otp !== 'string' || otp.length !== 4) {
       return res.status(400).json({ error: 'Invalid OTP format. Must be 4 digits.' });
     }
 
     const serviceClient = createServiceClient();
+
+    // Check if user exists
+    const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
+    const user = existingUsers?.users?.find(u => u.email === email);
+
+    if (!user) {
+      return res.status(400).json({ error: 'No account found with this email. Please register first.' });
+    }
 
     const { data: record, error: fetchError } = await serviceClient
       .from('otp_verifications')

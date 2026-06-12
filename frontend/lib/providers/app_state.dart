@@ -11,6 +11,7 @@ import '../models/fine.dart';
 import '../models/payment.dart';
 import '../services/supabase_service.dart';
 import '../services/payment_service.dart';
+import '../theme/app_theme.dart';
 
 class AppState extends ChangeNotifier {
   final SupabaseService _service = SupabaseService();

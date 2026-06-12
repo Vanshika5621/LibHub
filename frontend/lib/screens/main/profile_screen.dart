@@ -202,7 +202,7 @@ class ProfileScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              fine.reason ?? 'Overdue fine: ${fine.daysOverdue} days late',
+                              'Overdue fine: ${fine.daysOverdue} days late',
                               style: TextStyle(color: theme.textTheme.bodyMedium?.color, fontSize: 11),
                             ),
                             const SizedBox(height: 6),

@@ -101,9 +101,27 @@ class SupabaseService {
 
   // Profile
   Future<Profile?> getProfile() async {
-    if (currentUser == null) return null;
-    final data = await _client.from('profiles').select().eq('id', currentUser!.id).single();
-    return Profile.fromJson(data);
+    final user = currentUser;
+    if (user == null) return null;
+    try {
+      // Try twice with a small delay for profile to appear (DB replication sync)
+      for (int i = 0; i < 2; i++) {
+        final response = await _client
+            .from('profiles')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (response != null) {
+          return Profile.fromJson(response as Map<String, dynamic>);
+        }
+        if (i == 0) await Future.delayed(const Duration(milliseconds: 800));
+      }
+      return null;
+    } catch (e) {
+      print('getProfile error: $e');
+      return null;
+    }
   }
 
   Future<Profile> updateProfile(Map<String, dynamic> updates) async {
@@ -124,42 +142,45 @@ class SupabaseService {
     String sortBy = 'rating',
   }) async {
     try {
-      // Build the query step by step
-      var q = _client.from('books').select();
+      print('🔍 Fetching books: genre=$genre, query=$query');
+      
+      dynamic request = _client.from('books').select();
 
       if (genre.isNotEmpty && genre != 'All') {
-        q = q.eq('genre', genre);
+        request = request.eq('genre', genre);
       }
 
       if (onlyAvailable) {
-        q = q.gt('available_copies', 0);
+        request = request.gt('available_copies', 0);
       }
 
-      // Apply sort - order() returns PostgrestTransformBuilder so we execute directly
-      List<dynamic> response;
+      // Chain sorting directly
       if (sortBy == 'rating') {
-        response = await q.order('rating', ascending: false);
+        request = request.order('rating', ascending: false);
       } else if (sortBy == 'new') {
-        response = await q.order('is_new_arrival', ascending: false);
+        request = request.order('is_new_arrival', ascending: false);
       } else {
-        response = await q.order('created_at', ascending: false);
+        request = request.order('created_at', ascending: false);
       }
 
-      List<Book> books = response.map((x) => Book.fromJson(x as Map<String, dynamic>)).toList();
+      final response = await request;
+      print('📚 DB returned ${response.length} books');
+      
+      final List<dynamic> data = response as List<dynamic>;
+      List<Book> books = data.map((x) => Book.fromJson(x as Map<String, dynamic>)).toList();
 
-      // Client-side simple search filter
+      // Client-side search (as a secondary layer)
       if (query.isNotEmpty) {
         final cleanQuery = query.toLowerCase();
         books = books.where((b) {
           return b.title.toLowerCase().contains(cleanQuery) ||
-              b.author.toLowerCase().contains(cleanQuery) ||
-              (b.description != null && b.description!.toLowerCase().contains(cleanQuery));
+              b.author.toLowerCase().contains(cleanQuery);
         }).toList();
       }
 
       return books;
     } catch (e) {
-      print('Supabase getBooks error, falling back to mock books: $e');
+      print('❌ Supabase getBooks CRITICAL ERROR: $e');
       return _getMockBooks(
         query: query,
         genre: genre,
@@ -329,6 +350,7 @@ class SupabaseService {
   }
 
   // Reading Goals
+
   Future<ReadingGoal?> getReadingGoal(int year) async {
     if (currentUser == null) return null;
     try {

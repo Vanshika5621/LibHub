@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
 import 'login_screen.dart';
-import 'otp_screen.dart';
+import '../main/navigation_holder.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -61,7 +61,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           .timeout(const Duration(seconds: 15));
       await state.loadUserData();
       if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OTPScreen()));
+        state.setTabIndex(0); // Ensure we land on the Home tab
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const NavigationHolder()));
       }
     } catch (e) {
       final raw = e.toString();

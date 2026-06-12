@@ -48,121 +48,93 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final state = context.watch<AppState>();
     final theme = Theme.of(context);
 
-    // Sync query if changed from dashboard
     if (_query != state.catalogSearchQuery) {
       _query = state.catalogSearchQuery;
       _searchCtrl.text = state.catalogSearchQuery;
-      _searchCtrl.selection = TextSelection.fromPosition(
-        TextPosition(offset: _searchCtrl.text.length),
-      );
     }
 
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('Book Catalog', style: TextStyle(fontWeight: FontWeight.bold)),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search by title or author...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); _applyFilters(); })
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                isDense: true,
-              ),
-              onChanged: (v) { setState(() => _query = v); _applyFilters(); },
-            ),
-          ),
-        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('Book Catalog', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800, fontSize: 24)),
+        centerTitle: false,
       ),
       body: Column(
         children: [
-          // Filter Row
-          SizedBox(
-            height: 48,
+          // Sleek Search Header
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search by title, author...',
+                  prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); _applyFilters(); })
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                onChanged: (v) { setState(() => _query = v); _applyFilters(); },
+              ),
+            ),
+          ),
+          
+          // Filters Row
+          Container(
+            height: 60,
+            color: Colors.white,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                // Genre Dropdown
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _genre != 'All' ? AppTheme.primaryColor.withOpacity(0.1) : theme.cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _genre != 'All' ? AppTheme.primaryColor : theme.dividerColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _genre,
-                      isDense: true,
-                      style: TextStyle(fontSize: 13, color: _genre != 'All' ? AppTheme.primaryColor : theme.textTheme.bodyLarge?.color, fontWeight: FontWeight.w500, fontFamily: 'Inter'),
-                      icon: const Icon(Icons.arrow_drop_down, size: 18),
-                      items: _genres.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                      onChanged: (v) { setState(() => _genre = v!); _applyFilters(); },
-                    ),
-                  ),
+                _buildFilterChip(
+                  label: _genre == 'All' ? 'Genre' : _genre,
+                  icon: Icons.category_rounded,
+                  active: _genre != 'All',
+                  onTap: () => _showGenrePicker(),
                 ),
-                const SizedBox(width: 8),
-                // Sort Dropdown
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: theme.dividerColor),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _sortBy,
-                      isDense: true,
-                      style: TextStyle(fontSize: 13, color: theme.textTheme.bodyLarge?.color, fontFamily: 'Inter'),
-                      icon: const Icon(Icons.arrow_drop_down, size: 18),
-                      items: _sortOptions.map((o) => DropdownMenuItem(value: o['value'], child: Text(o['label']!))).toList(),
-                      onChanged: (v) { setState(() => _sortBy = v!); _applyFilters(); },
-                    ),
-                  ),
+                const SizedBox(width: 10),
+                _buildFilterChip(
+                  label: _sortOptions.firstWhere((o) => o['value'] == _sortBy)['label']!,
+                  icon: Icons.sort_rounded,
+                  active: true,
+                  onTap: () => _showSortPicker(),
                 ),
-                const SizedBox(width: 8),
-                // Available filter chip
+                const SizedBox(width: 10),
                 FilterChip(
-                  label: const Text('Available Only', style: TextStyle(fontSize: 12)),
+                  label: const Text('Available'),
                   selected: _onlyAvailable,
                   onSelected: (v) { setState(() => _onlyAvailable = v); _applyFilters(); },
-                  selectedColor: AppTheme.primaryColor.withOpacity(0.12),
+                  selectedColor: AppTheme.primaryColor.withOpacity(0.1),
                   checkmarkColor: AppTheme.primaryColor,
-                  labelStyle: TextStyle(color: _onlyAvailable ? AppTheme.primaryColor : null, fontWeight: _onlyAvailable ? FontWeight.w600 : null),
-                  side: BorderSide(color: _onlyAvailable ? AppTheme.primaryColor : theme.dividerColor),
-                  backgroundColor: theme.cardColor,
-                  showCheckmark: false,
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ],
             ),
           ),
-          // Book Grid
+
+          // Grid View
           Expanded(
             child: state.isLoading && state.books.isEmpty
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+                ? const Center(child: CircularProgressIndicator())
                 : state.books.isEmpty
-                    ? Center(
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(Icons.search_off_rounded, size: 64, color: theme.textTheme.bodyMedium?.color),
-                          const SizedBox(height: 12),
-                          const Text('No books found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 6),
-                          Text('Try adjusting your search or filters', style: theme.textTheme.bodyMedium),
-                        ]),
-                      )
+                    ? _buildEmptyState()
                     : GridView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(20),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.62,
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.65,
                         ),
                         itemCount: state.books.length,
                         itemBuilder: (ctx, i) {
@@ -180,6 +152,65 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
     );
   }
+
+  Widget _buildFilterChip({required String label, required IconData icon, required bool active, required VoidCallback onTap}) {
+    return ActionChip(
+      onPressed: onTap,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+      avatar: Icon(icon, size: 16, color: active ? AppTheme.primaryColor : Colors.grey),
+      label: Text(label, style: TextStyle(color: active ? AppTheme.primaryColor : Colors.black87, fontWeight: active ? FontWeight.bold : FontWeight.normal)),
+      backgroundColor: active ? AppTheme.primaryColor.withOpacity(0.05) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: active ? AppTheme.primaryColor : Colors.grey.shade200),
+      ),
+    );
+  }
+
+  void _showGenrePicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => ListView(
+        shrinkWrap: true,
+        children: _genres.map((g) => ListTile(
+          title: Text(g),
+          trailing: _genre == g ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+          onTap: () { setState(() => _genre = g); _applyFilters(); Navigator.pop(context); },
+        )).toList(),
+      ),
+    );
+  }
+
+  void _showSortPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => ListView(
+        shrinkWrap: true,
+        children: _sortOptions.map((o) => ListTile(
+          title: Text(o['label']!),
+          trailing: _sortBy == o['value'] ? const Icon(Icons.check, color: AppTheme.primaryColor) : null,
+          onTap: () { setState(() => _sortBy = o['value']!); _applyFilters(); Navigator.pop(context); },
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_rounded, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          const Text('No matches found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Try different keywords or filters.'),
+        ],
+      ),
+    );
+  }
 }
 
 class _CatalogBookCard extends StatelessWidget {
@@ -187,91 +218,66 @@ class _CatalogBookCard extends StatelessWidget {
   final bool isWishlisted;
   final VoidCallback? onWishlistToggle;
   final VoidCallback onTap;
+
   const _CatalogBookCard({required this.book, required this.isWishlisted, this.onWishlistToggle, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.dividerColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 3,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: book.coverImage != null
-                        ? Image.network(book.coverImage!, fit: BoxFit.cover, width: double.infinity)
-                        : Container(
-                            color: AppTheme.primaryColor.withOpacity(0.1),
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.menu_book_rounded, color: AppTheme.primaryColor, size: 48),
-                          ),
-                  ),
-                  if (book.availableCopies == 0)
-                    Positioned(
-                      top: 8, left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(color: AppTheme.errorColor, borderRadius: BorderRadius.circular(6)),
-                        child: const Text('Unavailable', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  if (onWishlistToggle != null)
-                    Positioned(
-                      top: 6, right: 6,
-                      child: GestureDetector(
-                        onTap: onWishlistToggle,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), shape: BoxShape.circle),
-                          child: Icon(
-                            isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: isWishlisted ? AppTheme.errorColor : Colors.white, size: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    book.coverImage != null && book.coverImage!.isNotEmpty
+                        ? Image.network(book.coverImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder())
+                        : _buildPlaceholder(),
+                    if (onWishlistToggle != null)
+                      Positioned(
+                        top: 8, right: 8,
+                        child: GestureDetector(
+                          onTap: onWishlistToggle,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            child: Icon(isWishlisted ? Icons.favorite : Icons.favorite_border, color: Colors.red, size: 16),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(book.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(book.author, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const Spacer(),
-                  Row(children: [
-                    const Icon(Icons.star_rounded, color: AppTheme.secondaryColor, size: 13),
-                    const SizedBox(width: 3),
-                    Text(book.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11, color: AppTheme.secondaryColor, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppTheme.primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                        child: Text(book.genre, style: const TextStyle(color: AppTheme.primaryColor, fontSize: 10, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ),
-                    ),
-                  ]),
-                ]),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 10),
+          Text(book.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(book.author, style: TextStyle(color: Colors.grey.shade500, fontSize: 11), maxLines: 1),
+          Row(
+            children: [
+              const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
+              const SizedBox(width: 4),
+              Text(book.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          )
+        ],
       ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey.shade100,
+      child: const Center(child: Icon(Icons.book_rounded, color: Colors.grey, size: 40)),
     );
   }
 }

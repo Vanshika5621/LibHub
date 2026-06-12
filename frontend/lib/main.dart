@@ -72,7 +72,8 @@ class _AppRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
 
-    if (state.isLoggedIn) {
+    // Always show login screen first, let user decide to login or browse as guest
+    if (state.isLoggedIn && state.profile != null) {
       return const NavigationHolder();
     }
     return const LoginScreen();

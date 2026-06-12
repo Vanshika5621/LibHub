@@ -10,7 +10,7 @@ const razorpayRoutes = require('./routes/razorpay');
 const aiRoutes = require('./routes/ai');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // Middleware
 app.use(cors());
@@ -34,6 +34,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong on the server!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-});
+// For local development
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  });
+}
+
+// Export for Vercel
+module.exports = app;
