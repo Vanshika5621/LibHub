@@ -16,34 +16,7 @@ router.post('/register', async (req, res) => {
     const serviceClient = createServiceClient();
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Check if user already exists in Auth
-    const { data: existingUsers, error: listError } = await serviceClient.auth.admin.listUsers();
-    if (listError) {
-      console.error('List users error:', listError);
-    }
-
-    const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
-    
-    if (existingUser) {
-      // Check if they have a profile
-      const { data: profile } = await serviceClient
-        .from('profiles')
-        .select('id')
-        .eq('id', existingUser.id)
-        .maybeSingle();
-
-      if (profile) {
-        return res.status(400).json({ error: 'An account with this email already exists. Please sign in.' });
-      } else {
-        // User exists in Auth but has no Profile (partial registration from previous failure)
-        console.log(`Cleaning up ghost user for ${normalizedEmail}...`);
-        await serviceClient.auth.admin.deleteUser(existingUser.id);
-        // Wait 1 second for deletion to propagate
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    // 2. Create user via admin API
+    // 1. Create user via admin API directly
     const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
       email: normalizedEmail,
       password,
@@ -58,43 +31,41 @@ router.post('/register', async (req, res) => {
     });
 
     if (createError) {
-      console.error('Admin createUser error:', createError);
       if (createError.message.includes('already registered') || createError.message.includes('already exists')) {
-        return res.status(400).json({ error: 'An account with this email already exists and is fully verified.' });
+        // If user exists in Auth but maybe not in Profiles, just try to update Profile
+        // or tell them to sign in. For simplicity, we tell them it exists.
+        return res.status(400).json({ error: 'An account with this email already exists.' });
       }
       return res.status(400).json({ error: `Supabase Auth Error: ${createError.message}` });
     }
 
     const userId = newUser.user.id;
 
-    // 3. Manually Create Profile (since we disabled the DB trigger for debugging)
-    console.log(`Creating profile for ${userId}...`);
-    const { error: profileError } = await serviceClient
-      .from('profiles')
-      .insert({
-        id: userId,
-        email: normalizedEmail,
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone || '',
-        address: address || '',
-        city: city || '',
-        email_verified: true,
-      });
+    // 2. Create Profile and Defaults in parallel to save time
+    console.log(`Setting up account for ${userId}...`);
+    
+    const profilePromise = serviceClient.from('profiles').insert({
+      id: userId,
+      email: normalizedEmail,
+      first_name: firstName,
+      last_name: lastName,
+      phone: phone || '',
+      address: address || '',
+      city: city || '',
+      email_verified: true,
+    });
 
-    if (profileError) {
-      console.error('Manual profile creation error:', profileError);
-    }
+    const notifPromise = serviceClient.from('notification_preferences').insert({ user_id: userId });
+    const goalPromise = serviceClient.from('reading_goals').insert({ 
+      user_id: userId, 
+      year: new Date().getFullYear() 
+    });
 
-    // 4. Create other defaults (in background, but with proper safety)
-    try {
-      await serviceClient.from('notification_preferences').insert({ user_id: userId });
-      await serviceClient.from('reading_goals').insert({ 
-        user_id: userId, 
-        year: new Date().getFullYear() 
-      });
-    } catch (err) {
-      console.warn('Silent warning creating default user settings:', err.message);
+    // Wait for core profile, let others happen
+    const [profileResult] = await Promise.all([profilePromise, notifPromise, goalPromise]);
+
+    if (profileResult.error) {
+      console.error('Profile creation error:', profileResult.error);
     }
 
     console.log(`✅ Successfully created user and profile for: ${normalizedEmail}`);
