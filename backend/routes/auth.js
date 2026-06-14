@@ -41,38 +41,34 @@ router.post('/register', async (req, res) => {
 
     const userId = newUser.user.id;
 
-    // 2. IMPORTANT: Return response IMMEDIATELY so the user doesn't wait
-    console.log(`🚀 Returning immediate success for: ${normalizedEmail}`);
-    res.json({ success: true, userId: userId });
+    // 2. SETUP EVERYTHING (We MUST wait here because Vercel kills background tasks)
+    console.log(`🛠️ Setting up mandatory account data for ${userId}...`);
+    try {
+      await Promise.all([
+        serviceClient.from('profiles').insert({
+          id: userId,
+          email: normalizedEmail,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || '',
+          address: address || '',
+          city: city || '',
+          email_verified: true,
+        }),
+        serviceClient.from('notification_preferences').insert({ user_id: userId }),
+        serviceClient.from('reading_goals').insert({ 
+          user_id: userId, 
+          year: new Date().getFullYear() 
+        })
+      ]);
+      console.log(`✅ All account data setup complete for: ${normalizedEmail}`);
+    } catch (setupErr) {
+      console.error('⚠️ Account setup warning (some tables might have failed):', setupErr);
+      // We continue because the Auth user is already created
+    }
 
-    // 3. Setup everything else in the background (Async)
-    (async () => {
-      try {
-        console.log(`🛠️ Setting up background data for ${userId}...`);
-        
-        await Promise.all([
-          serviceClient.from('profiles').insert({
-            id: userId,
-            email: normalizedEmail,
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone || '',
-            address: address || '',
-            city: city || '',
-            email_verified: true,
-          }),
-          serviceClient.from('notification_preferences').insert({ user_id: userId }),
-          serviceClient.from('reading_goals').insert({ 
-            user_id: userId, 
-            year: new Date().getFullYear() 
-          })
-        ]);
-        
-        console.log(`✅ Background setup complete for: ${normalizedEmail}`);
-      } catch (err) {
-        console.error('❌ Background setup error:', err);
-      }
-    })();
+    // 3. Return response ONLY after everything is done
+    return res.json({ success: true, userId: userId });
 
   } catch (error) {
     console.error('Register route error:', error);

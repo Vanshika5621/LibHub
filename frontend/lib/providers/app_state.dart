@@ -116,11 +116,25 @@ class AppState extends ChangeNotifier {
     try {
       // 1. Get Profile FIRST (Essential)
       _profile = await _service.getProfile();
-      notifyListeners(); // Let UI know we have a profile to navigate
       
-      if (_profile == null) {
-        print('⚠️ Profile not found, but continuing load...');
+      if (_profile == null && currentUser != null) {
+        print('⚠️ Profile missing! Attempting Auto-Fix...');
+        // Create profile from Auth metadata as a fallback
+        final meta = currentUser!.userMetadata ?? {};
+        await _service.updateProfile({
+          'id': currentUser!.id,
+          'email': currentUser!.email,
+          'first_name': meta['first_name'] ?? 'Library',
+          'last_name': meta['last_name'] ?? 'User',
+          'phone': meta['phone'] ?? '',
+          'address': meta['address'] ?? '',
+          'city': meta['city'] ?? '',
+          'email_verified': true,
+        });
+        _profile = await _service.getProfile();
       }
+
+      notifyListeners(); // Now we definitely have a profile or a fixed one
 
       // 2. Load EVERYTHING ELSE in parallel, but don't block the UI if one fails
       Future.wait([
