@@ -65,7 +65,7 @@ class SupabaseService {
     }
   }
 
-  // OTP Sending (via Next.js backend API)
+  // OTP Sending (via Node.js backend API)
   Future<Map<String, dynamic>> sendOTP() async {
     try {
       final response = await http.post(
@@ -78,7 +78,7 @@ class SupabaseService {
     }
   }
 
-  // OTP Verification (via Next.js backend API)
+  /// Proxy heavy or admin-only operations to our Node.js backend
   Future<Map<String, dynamic>> verifyOTP(String otpCode) async {
     try {
       final response = await http.post(
@@ -453,7 +453,7 @@ class SupabaseService {
     return ChatMessage.fromJson(data);
   }
 
-  // AI recommendations / responses (via Next.js AI chat api endpoint)
+  // AI recommendations / responses (via Node.js AI chat api endpoint)
   Future<Map<String, dynamic>> getAIResponse(String message) async {
     try {
       final response = await http

@@ -73,6 +73,7 @@ LibHub/
    npm install
    npm start
    ```
+   This runs the Node.js Express server on `http://localhost:3000`.
 
 ### 2. Frontend Setup (Flutter)
 1. Go to `frontend/` directory.

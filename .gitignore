@@ -28,7 +28,7 @@ ios/Flutter/flutter_assets/
 # macOS
 macos/Flutter/GeneratedPluginRegistrant.swift
 
-# Next.js backend
+# Node.js backend
 .next/
 node_modules/
 npm-debug.log*
