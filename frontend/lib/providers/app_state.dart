@@ -107,36 +107,42 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Load initial data after login
+  // Load initial data after login (Optimized for speed)
   Future<void> loadUserData() async {
     if (!isLoggedIn) return;
+    print('🚀 AppState: loading user data for ${currentUser?.email}');
     setLoading(true);
+    setError(null);
     try {
-      final results = await Future.wait([
-        _service.getProfile(),
-        _service.getBooks(),
-        _service.getUserBorrows(),
-        _service.getUserReserves(),
-        _service.getWishlistIds(),
-        _service.getUserFines(),
-        _service.getUserPayments(),
-        _service.getReadingGoal(DateTime.now().year),
-        _service.getUserNotifications(),
-        _service.getNotificationPreferences(),
-        _service.getChatMessages(),
-      ]);
-      _profile = results[0] as Profile?;
-      _books = results[1] as List<Book>;
-      _borrows = results[2] as List<Borrow>;
-      _reserves = results[3] as List<Reserve>;
-      _wishlistIds = results[4] as List<String>;
-      _fines = results[5] as List<Fine>;
-      _payments = results[6] as List<Payment>;
-      _readingGoal = results[7] as ReadingGoal?;
-      _notifications = results[8] as List<NotificationModel>;
-      _notificationPrefs = results[9] as NotificationPreferences?;
-      _chatMessages = results[10] as List<ChatMessage>;
+      // 1. Get Profile FIRST (Essential)
+      _profile = await _service.getProfile();
+      notifyListeners(); // Let UI know we have a profile to navigate
+      
+      if (_profile == null) {
+        print('⚠️ Profile not found, but continuing load...');
+      }
+
+      // 2. Load EVERYTHING ELSE in parallel, but don't block the UI if one fails
+      Future.wait([
+        _service.getBooks().then((v) => _books = v),
+        _service.getUserBorrows().then((v) => _borrows = v),
+        _service.getUserReserves().then((v) => _reserves = v),
+        _service.getWishlistIds().then((v) => _wishlistIds = v),
+        _service.getUserFines().then((v) => _fines = v),
+        _service.getUserPayments().then((v) => _payments = v),
+        _service.getReadingGoal(DateTime.now().year).then((v) => _readingGoal = v),
+        _service.getUserNotifications().then((v) => _notifications = v),
+        _service.getNotificationPreferences().then((v) => _notificationPrefs = v),
+        _service.getChatMessages().then((v) => _chatMessages = v),
+      ]).then((_) {
+        print('✅ AppState: All secondary data loaded');
+        notifyListeners();
+      }).catchError((e) {
+        print('⚠️ Background load error: $e');
+      });
+
     } catch (e) {
+      print('❌ AppState Load Error: $e');
       setError(e.toString());
     } finally {
       setLoading(false);
@@ -150,7 +156,9 @@ class AppState extends ChangeNotifier {
     bool onlyAvailable = false,
     String sortBy = 'rating',
   }) async {
+    print('📦 AppState: reloadBooks started for genre: $genre');
     setLoading(true);
+    setError(null);
     try {
       _books = await _service.getBooks(
         query: query,
@@ -158,7 +166,10 @@ class AppState extends ChangeNotifier {
         onlyAvailable: onlyAvailable,
         sortBy: sortBy,
       );
+      print('📚 AppState: ${ _books.length} books loaded successfully');
+      notifyListeners();
     } catch (e) {
+      print('❌ AppState Error loading books: $e');
       setError(e.toString());
     } finally {
       setLoading(false);
