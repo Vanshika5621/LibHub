@@ -59,6 +59,32 @@ LibHub/
 
 ---
 
+## ⚙️ Setup & Installation
+
+### 1. Backend Setup (Node.js)
+1. Go to `backend/` directory.
+2. Create a `.env` file manually or use:
+   ```bash
+   cp .env.example .env
+   ```
+3. Fill in your Supabase & OpenAI keys in `.env`.
+4. Install and run:
+   ```bash
+   npm install
+   npm start
+   ```
+
+### 2. Frontend Setup (Flutter)
+1. Go to `frontend/` directory.
+2. Update `lib/constants.dart` with your live URLs.
+3. Run the app:
+   ```bash
+   flutter pub get
+   flutter run
+   ```
+
+---
+
 ## 🚀 Deployment Status
 
 - **API Server**: Live on Vercel (`https://lib-hub-one.vercel.app`)
