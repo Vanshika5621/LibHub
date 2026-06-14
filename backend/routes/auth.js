@@ -41,38 +41,44 @@ router.post('/register', async (req, res) => {
 
     const userId = newUser.user.id;
 
-    // 2. Create Profile and Defaults in parallel to save time
-    console.log(`Setting up account for ${userId}...`);
-    
-    const profilePromise = serviceClient.from('profiles').insert({
-      id: userId,
-      email: normalizedEmail,
-      first_name: firstName,
-      last_name: lastName,
-      phone: phone || '',
-      address: address || '',
-      city: city || '',
-      email_verified: true,
-    });
+    // 2. IMPORTANT: Return response IMMEDIATELY so the user doesn't wait
+    console.log(`🚀 Returning immediate success for: ${normalizedEmail}`);
+    res.json({ success: true, userId: userId });
 
-    const notifPromise = serviceClient.from('notification_preferences').insert({ user_id: userId });
-    const goalPromise = serviceClient.from('reading_goals').insert({ 
-      user_id: userId, 
-      year: new Date().getFullYear() 
-    });
+    // 3. Setup everything else in the background (Async)
+    (async () => {
+      try {
+        console.log(`🛠️ Setting up background data for ${userId}...`);
+        
+        await Promise.all([
+          serviceClient.from('profiles').insert({
+            id: userId,
+            email: normalizedEmail,
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone || '',
+            address: address || '',
+            city: city || '',
+            email_verified: true,
+          }),
+          serviceClient.from('notification_preferences').insert({ user_id: userId }),
+          serviceClient.from('reading_goals').insert({ 
+            user_id: userId, 
+            year: new Date().getFullYear() 
+          })
+        ]);
+        
+        console.log(`✅ Background setup complete for: ${normalizedEmail}`);
+      } catch (err) {
+        console.error('❌ Background setup error:', err);
+      }
+    })();
 
-    // Wait for core profile, let others happen
-    const [profileResult] = await Promise.all([profilePromise, notifPromise, goalPromise]);
-
-    if (profileResult.error) {
-      console.error('Profile creation error:', profileResult.error);
-    }
-
-    console.log(`✅ Successfully created user and profile for: ${normalizedEmail}`);
-    return res.json({ success: true, userId: userId });
   } catch (error) {
     console.error('Register route error:', error);
-    return res.status(500).json({ error: `Registration error: ${error.message}` });
+    if (!res.headersSent) {
+      return res.status(500).json({ error: `Registration error: ${error.message}` });
+    }
   }
 });
 
