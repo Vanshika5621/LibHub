@@ -107,8 +107,8 @@ class SupabaseService {
     final user = currentUser;
     if (user == null) return null;
     try {
-      // Try multiple times with a delay for profile to appear (DB replication sync)
-      for (int i = 0; i < 4; i++) {
+      // Try twice and get out, don't keep the user waiting
+      for (int i = 0; i < 2; i++) {
         final response = await _client
             .from('profiles')
             .select()
@@ -118,8 +118,7 @@ class SupabaseService {
         if (response != null) {
           return Profile.fromJson(response as Map<String, dynamic>);
         }
-        print('Profile not found yet, retrying... (Attempt ${i + 1}/4)');
-        await Future.delayed(Duration(milliseconds: 1000 + (i * 500)));
+        if (i == 0) await Future.delayed(const Duration(milliseconds: 500));
       }
       return null;
     } catch (e) {

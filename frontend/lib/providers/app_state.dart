@@ -134,7 +134,11 @@ class AppState extends ChangeNotifier {
         _profile = await _service.getProfile();
       }
 
-      notifyListeners(); // Now we definitely have a profile or a fixed one
+      if (_profile == null) {
+        throw Exception('We logged you in, but could not create your library profile. Please check your internet or Supabase permissions.');
+      }
+
+      notifyListeners();
 
       // 2. Load EVERYTHING ELSE in parallel, but don't block the UI if one fails
       Future.wait([
