@@ -118,10 +118,10 @@ class AppState extends ChangeNotifier {
       _profile = await _service.getProfile();
       
       if (_profile == null && currentUser != null) {
-        print('⚠️ Profile missing! Attempting Auto-Fix...');
-        // Create profile from Auth metadata as a fallback
+        print('⚠️ Profile missing! Attempting Auto-Fix with direct Insert...');
         final meta = currentUser!.userMetadata ?? {};
-        await _service.updateProfile({
+        // Use a direct insert through Supabase client to ensure it's created
+        await _service.createProfileDirectly({
           'id': currentUser!.id,
           'email': currentUser!.email,
           'first_name': meta['first_name'] ?? 'Library',

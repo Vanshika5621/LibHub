@@ -128,6 +128,10 @@ class SupabaseService {
     }
   }
 
+  Future<void> createProfileDirectly(Map<String, dynamic> data) async {
+    await _client.from('profiles').upsert(data);
+  }
+
   Future<Profile> updateProfile(Map<String, dynamic> updates) async {
     final data = await _client
         .from('profiles')
