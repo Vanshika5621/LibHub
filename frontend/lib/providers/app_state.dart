@@ -24,8 +24,8 @@ class AppState extends ChangeNotifier {
   AppState() {
     _service = SupabaseService();
     _paymentService = PaymentService(_service);
-    // Load public books immediately so guests see catalog without signing in
-    reloadBooks();
+    // Load public books silently so guests see catalog immediately
+    reloadBooks(silent: true);
     _checkAuth();
   }
 
@@ -128,12 +128,11 @@ class AppState extends ChangeNotifier {
     setError(null);
     try {
       // 1. Get Profile FIRST (Essential)
-      _profile = await _service.getProfile();
+      _profile = await _service.getProfile().timeout(const Duration(seconds: 10));
       
       if (_profile == null && currentUser != null) {
         print('⚠️ Profile missing! Attempting Auto-Fix with direct Insert...');
         final meta = currentUser!.userMetadata ?? {};
-        // Use a direct insert through Supabase client to ensure it's created
         await _service.createProfileDirectly({
           'id': currentUser!.id,
           'email': currentUser!.email,
@@ -143,38 +142,31 @@ class AppState extends ChangeNotifier {
           'address': meta['address'] ?? '',
           'city': meta['city'] ?? '',
           'email_verified': true,
-        });
+        }).timeout(const Duration(seconds: 10));
         _profile = await _service.getProfile();
       }
 
       if (_profile == null) {
-        throw Exception('We logged you in, but could not create your library profile. Please check your internet or Supabase permissions.');
+        throw Exception('Could not sync library profile. Please check internet connection.');
       }
 
       notifyListeners();
 
-      // 2. Load EVERYTHING ELSE in parallel, but don't block the UI if one fails
-      Future.wait([
-        _service.getBooks().then((v) => _books = v),
-        _service.getUserBorrows().then((v) => _borrows = v),
-        _service.getUserReserves().then((v) => _reserves = v),
-        _service.getWishlistIds().then((v) => _wishlistIds = v),
-        _service.getUserFines().then((v) => _fines = v),
-        _service.getUserPayments().then((v) => _payments = v),
-        _service.getReadingGoal(DateTime.now().year).then((v) => _readingGoal = v),
-        _service.getUserNotifications().then((v) => _notifications = v),
-        _service.getNotificationPreferences().then((v) => _notificationPrefs = v),
-        _service.getChatMessages().then((v) => _chatMessages = v),
-      ]).then((_) {
-        print('✅ AppState: All secondary data loaded');
-        notifyListeners();
-      }).catchError((e) {
-        print('⚠️ Background load error: $e');
-      });
+      // 2. Load EVERYTHING ELSE in parallel, but don't block the UI
+      _service.getBooks().then((v) { _books = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserBorrows().then((v) { _borrows = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserReserves().then((v) { _reserves = v; notifyListeners(); }).catchError((_) {});
+      _service.getWishlistIds().then((v) { _wishlistIds = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserFines().then((v) { _fines = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserPayments().then((v) { _payments = v; notifyListeners(); }).catchError((_) {});
+      _service.getReadingGoal(DateTime.now().year).then((v) { _readingGoal = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserNotifications().then((v) { _notifications = v; notifyListeners(); }).catchError((_) {});
+      _service.getNotificationPreferences().then((v) { _notificationPrefs = v; notifyListeners(); }).catchError((_) {});
+      _service.getChatMessages().then((v) { _chatMessages = v; notifyListeners(); }).catchError((_) {});
 
     } catch (e) {
       print('❌ AppState Load Error: $e');
-      setError(e.toString());
+      if (!silent) setError(e.toString());
     } finally {
       if (!silent) setLoading(false);
     }
@@ -186,9 +178,10 @@ class AppState extends ChangeNotifier {
     String genre = '',
     bool onlyAvailable = false,
     String sortBy = 'rating',
+    bool silent = false,
   }) async {
-    print('📦 AppState: reloadBooks started for genre: $genre');
-    setLoading(true);
+    print('📦 AppState: reloadBooks started for genre: $genre (silent: $silent)');
+    if (!silent) setLoading(true);
     setError(null);
     try {
       _books = await _service.getBooks(
@@ -196,14 +189,14 @@ class AppState extends ChangeNotifier {
         genre: genre,
         onlyAvailable: onlyAvailable,
         sortBy: sortBy,
-      );
+      ).timeout(const Duration(seconds: 15));
       print('📚 AppState: ${ _books.length} books loaded successfully');
       notifyListeners();
     } catch (e) {
       print('❌ AppState Error loading books: $e');
-      setError(e.toString());
+      if (!silent) setError(e.toString());
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 

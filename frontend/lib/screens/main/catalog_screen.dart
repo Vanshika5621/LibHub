@@ -32,14 +32,19 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final state = context.read<AppState>();
     _searchCtrl.text = state.catalogSearchQuery;
     _query = state.catalogSearchQuery;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _applyFilters());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (state.books.isEmpty || state.catalogSearchQuery.isNotEmpty) {
+        _applyFilters(silent: true);
+      }
+    });
   }
 
-  void _applyFilters() {
+  void _applyFilters({bool silent = false}) {
     final state = context.read<AppState>();
     state.setCatalogSearchQuery(_query);
     state.reloadBooks(
       query: _query, genre: _genre, onlyAvailable: _onlyAvailable, sortBy: _sortBy,
+      silent: silent,
     );
   }
 

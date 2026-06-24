@@ -42,8 +42,13 @@ class _LoginScreenState extends State<LoginScreen> {
       // 2. Perform Login
       await appState.service.signIn(_emailC.text.trim(), _passC.text);
       
-      // 3. Load user data
-      await appState.loadUserData();
+      // 3. Load user data silently in background
+      appState.loadUserData(silent: true);
+      
+      // 4. Close login and let main router handle NavigationHolder
+      if (mounted) {
+        // No explicit navigate needed as _AppRouter in main.dart watches state.isLoggedIn
+      }
 
     } catch (e) {
       setState(() {
