@@ -78,15 +78,19 @@ router.post('/verify', requireAuth, async (req, res) => {
       .insert({
         user_id: user.id,
         amount: amount,
-        payment_method: 'razorpay',
-        transaction_id: razorpay_payment_id,
-        purpose: purpose,
-        status: 'completed'
+        razorpay_order_id: razorpay_order_id,
+        razorpay_payment_id: razorpay_payment_id,
+        payment_type: purpose === 'membership_upgrade' ? 'membership' : 'fine',
+        status: 'completed',
+        metadata: metadata
       })
       .select()
       .single();
 
-    if (paymentError) return res.status(500).json({ error: 'Payment verified but failed to record' });
+    if (paymentError) {
+      console.error('Payment record error:', paymentError);
+      return res.status(500).json({ error: 'Payment verified but failed to record' });
+    }
 
     // Handle specific purposes
     if (purpose === 'membership_upgrade' && metadata?.tier) {
@@ -97,7 +101,10 @@ router.post('/verify', requireAuth, async (req, res) => {
     } else if (purpose === 'fine_payment' && metadata?.fineId) {
       await serviceClient
         .from('fines')
-        .update({ status: 'paid', payment_id: payment.id })
+        .update({ 
+          paid: true, 
+          paid_at: new Date().toISOString() 
+        })
         .eq('id', metadata.fineId);
     }
 

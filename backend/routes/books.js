@@ -207,7 +207,7 @@ router.post('/renew', requireAuth, async (req, res) => {
 
     // Check renew limit
     const MAX_RENEWALS = 2;
-    if (borrow.renewals >= MAX_RENEWALS) {
+    if (borrow.renewal_count >= MAX_RENEWALS) {
       return res.status(400).json({ error: 'Maximum renewal limit reached for this book' });
     }
 
@@ -224,7 +224,7 @@ router.post('/renew', requireAuth, async (req, res) => {
       .from('borrows')
       .update({
         due_date: newDueDate.toISOString(),
-        renewals: borrow.renewals + 1
+        renewal_count: borrow.renewal_count + 1
       })
       .eq('id', borrow.id);
 

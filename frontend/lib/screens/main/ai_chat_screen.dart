@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../models/chat_message.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -35,6 +36,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
   }
 
+  void _quickSend(String text) {
+    _inputCtrl.text = text;
+    _send();
+  }
+
   Future<void> _send() async {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
@@ -49,6 +55,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final theme = Theme.of(context);
+    final dark = AppTheme.isDarkMode(context);
     final messages = state.chatMessages;
 
     return Scaffold(
@@ -90,43 +97,96 @@ class _AIChatScreenState extends State<AIChatScreen> {
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: _TypingIndicator(),
             ),
+          // Quick suggestions above input
+          if (messages.isNotEmpty)
+            SizedBox(
+              height: 45,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _QuickChip(label: '📚 Recommend fiction', onTap: () => _quickSend('Recommend a fiction book')),
+                  _QuickChip(label: '📋 Borrowing rules', onTap: () => _quickSend('What are the borrowing limits?')),
+                  _QuickChip(label: '🔖 How to reserve?', onTap: () => _quickSend('How do I reserve a book?')),
+                  _QuickChip(label: '💰 Fine policy', onTap: () => _quickSend('Tell me about late fines')),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
           // Input Area
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
-              border: Border(top: BorderSide(color: theme.dividerColor)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _inputCtrl,
-                    minLines: 1, maxLines: 4,
-                    decoration: InputDecoration(
-                      hintText: 'Ask about books, policies, recommendations...',
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: theme.dividerColor)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2)),
-                      isDense: true,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: dark ? const Color(0xFF2D2D3A) : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(28),
                     ),
-                    onSubmitted: (_) => _send(),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _inputCtrl,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: 'Type your question...',
+                              hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5)),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onSubmitted: (_) => _send(),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.attach_file_rounded, size: 20, color: Colors.grey),
+                          onPressed: () {}, // Future: image support
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 GestureDetector(
                   onTap: _sending ? null : _send,
-                  child: Container(
-                    width: 44, height: 44,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [AppTheme.primaryColor, Color(0xFF7C3AED)]),
-                      borderRadius: BorderRadius.circular(22),
+                      gradient: LinearGradient(
+                        colors: _sending 
+                          ? [Colors.grey, Colors.grey.shade400]
+                          : [const Color(0xFF6366F1), const Color(0xFF4F46E5)]
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        if (!_sending)
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                      ],
                     ),
                     alignment: Alignment.center,
                     child: _sending
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                        : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
                   ),
                 ),
               ],
@@ -146,49 +206,84 @@ class _ChatBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = msg.isUser;
     final theme = Theme.of(context);
+    final dark = AppTheme.isDarkMode(context);
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (!isUser) ...[
-            Container(
-              width: 32, height: 32,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppTheme.primaryColor, Color(0xFF7C3AED)]),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 17),
-            ),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-              decoration: BoxDecoration(
-                color: isUser ? AppTheme.primaryColor : theme.cardColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(isUser ? 18 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 18),
+          Row(
+            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isUser)
+                Container(
+                  width: 34, height: 34,
+                  margin: const EdgeInsets.only(right: 10, bottom: 2),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [const Color(0xFF6366F1), const Color(0xFF4F46E5)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3)),
+                    ],
+                  ),
+                  child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18),
                 ),
-                border: isUser ? null : Border.all(color: theme.dividerColor),
-              ),
-              child: Text(
-                msg.content,
-                style: TextStyle(
-                  color: isUser ? Colors.white : theme.textTheme.bodyLarge?.color,
-                  fontSize: 14,
-                  height: 1.5,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? AppTheme.primaryColor
+                        : (dark ? const Color(0xFF2D2D3A) : Colors.white),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(20),
+                      topRight: const Radius.circular(20),
+                      bottomLeft: Radius.circular(isUser ? 20 : 4),
+                      bottomRight: Radius.circular(isUser ? 4 : 20),
+                    ),
+                    boxShadow: [
+                      if (!isUser)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(dark ? 0.2 : 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                    ],
+                    border: isUser ? null : Border.all(color: dark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+                  ),
+                  child: Text(
+                    msg.content,
+                    style: TextStyle(
+                      color: isUser ? Colors.white : (dark ? Colors.white : AppTheme.textColor),
+                      fontSize: 14.5,
+                      height: 1.5,
+                      fontWeight: isUser ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  ),
                 ),
+              ),
+              if (isUser)
+                const SizedBox(width: 4),
+            ],
+          ),
+          Padding(
+            padding: EdgeInsets.only(top: 6, right: isUser ? 8 : 0, left: isUser ? 0 : 44),
+            child: Text(
+              isUser ? 'You' : 'LibHub AI',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.5),
+                letterSpacing: 0.5,
               ),
             ),
           ),
-          if (isUser) const SizedBox(width: 4),
         ],
       ),
     );
@@ -236,29 +331,127 @@ class _WelcomeState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 80, height: 80,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [AppTheme.primaryColor, Color(0xFF7C3AED)]),
-            borderRadius: BorderRadius.circular(24),
+    final dark = AppTheme.isDarkMode(context);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40),
+          Container(
+            width: 90, height: 90,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8)),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 45),
           ),
-          alignment: Alignment.center,
-          child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 40),
+          const SizedBox(height: 28),
+          Text(
+            'Hello! I\'m your Librarian',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: dark ? Colors.white : AppTheme.textColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Ask me anything about our library, from book suggestions to membership policies.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              color: (dark ? Colors.white : AppTheme.textColor).withOpacity(0.6),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 40),
+          _SuggestionGroup(
+            title: 'Try asking...',
+            suggestions: const [
+              '📚 Recommend a fiction book',
+              '📋 What are the borrowing limits?',
+              '🔖 How do I reserve a book?',
+              '💰 Tell me about late fines',
+            ],
+            onSelect: onSelectSuggestion,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestionGroup extends StatelessWidget {
+  final String title;
+  final List<String> suggestions;
+  final Function(String) onSelect;
+
+  const _SuggestionGroup({
+    required this.title,
+    required this.suggestions,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppTheme.isDarkMode(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+            color: (dark ? Colors.white : AppTheme.textColor).withOpacity(0.4),
+          ),
         ),
-        const SizedBox(height: 20),
-        const Text('LibHub AI Assistant', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Text('Ask me about books, policies, FAQs,\nor get personalized recommendations!', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
-        const SizedBox(height: 28),
-        Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-          _QuickChip(label: '📚 Book recommendations', onTap: () => onSelectSuggestion('Recommend a book')),
-          _QuickChip(label: '📋 Library policies', onTap: () => onSelectSuggestion('What is the borrowing limit?')),
-          _QuickChip(label: '❓ How to borrow', onTap: () => onSelectSuggestion('How to borrow a book?')),
-          _QuickChip(label: '⭐ Top rated books', onTap: () => onSelectSuggestion('Give me book recommendations')),
-        ]),
-      ]),
+        const SizedBox(height: 16),
+        ...suggestions.map((s) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
+            onTap: () => onSelect(s.substring(3)), // Remove emoji for query
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                color: dark ? const Color(0xFF2D2D3A) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: dark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+              ),
+              child: Row(
+                children: [
+                  Text(s.substring(0, 2), style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      s.substring(3),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: dark ? Colors.white : AppTheme.textColor,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: (dark ? Colors.white : AppTheme.textColor).withOpacity(0.3)),
+                ],
+              ),
+            ),
+          ),
+        )).toList(),
+      ],
     );
   }
 }
@@ -266,21 +459,21 @@ class _WelcomeState extends StatelessWidget {
 class _QuickChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
+
   const _QuickChip({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: theme.dividerColor),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 13)),
+    final dark = AppTheme.isDarkMode(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        onPressed: onTap,
+        backgroundColor: dark ? const Color(0xFF2D2D3A) : Colors.white,
+        side: BorderSide(color: dark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
       ),
     );
   }

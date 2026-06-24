@@ -251,4 +251,10 @@ class AppTheme {
       borderRadius: BorderRadius.circular(radius),
     );
   }
+
+  static bool isDarkMode(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
+  static Color get textColor => lightTextPrimary; // Fallback or common reference
 }

@@ -5,6 +5,7 @@ import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../models/borrow.dart';
 import '../../models/reserve.dart';
+import '../../widgets/premium_dialog.dart';
 
 class BorrowedScreen extends StatefulWidget {
   const BorrowedScreen({super.key});
@@ -92,18 +93,19 @@ class _BorrowCard extends StatefulWidget {
 class _BorrowCardState extends State<_BorrowCard> {
   bool _loading = false;
 
-  Future<void> _action(Future<Map<String, dynamic>> Function() action, String successMsg) async {
+  Future<void> _action(Future<Map<String, dynamic>> Function() action, String title, String successMsg, IconData icon, Color color) async {
     setState(() => _loading = true);
     final result = await action();
     if (mounted) {
       setState(() => _loading = false);
       final ok = result['success'] == true;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok ? successMsg : (result['error'] ?? 'Error')),
-        backgroundColor: ok ? AppTheme.successColor : AppTheme.errorColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
+      PremiumDialog.show(
+        context: context,
+        title: ok ? title : 'Action Failed',
+        message: ok ? successMsg : (result['error'] ?? 'An unexpected error occurred.'),
+        icon: ok ? icon : Icons.error_outline_rounded,
+        iconColor: ok ? color : AppTheme.errorColor,
+      );
     }
   }
 
@@ -112,6 +114,7 @@ class _BorrowCardState extends State<_BorrowCard> {
     final borrow = widget.borrow;
     final state = context.read<AppState>();
     final theme = Theme.of(context);
+    final dark = AppTheme.isDarkMode(context);
     final dueDate = borrow.dueDate;
     final now = DateTime.now();
     final daysLeft = dueDate.difference(now).inDays;
@@ -120,85 +123,152 @@ class _BorrowCardState extends State<_BorrowCard> {
 
     final book = borrow.book;
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isOverdue ? AppTheme.errorColor.withOpacity(0.4) : theme.dividerColor),
+        color: dark ? const Color(0xFF1E1E2E) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: (isOverdue ? AppTheme.errorColor : Colors.black).withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+        border: Border.all(
+          color: isOverdue ? AppTheme.errorColor.withOpacity(0.3) : (dark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+          width: 1.5,
+        ),
       ),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Cover
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: book?.coverImage != null
-                      ? Image.network(book!.coverImage!, width: 56, height: 76, fit: BoxFit.cover)
-                      : Container(
-                          width: 56, height: 76,
-                          color: AppTheme.primaryColor.withOpacity(0.1),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.menu_book_rounded, color: AppTheme.primaryColor),
-                        ),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: book?.coverImage != null
+                        ? Image.network(book!.coverImage!, width: 70, height: 100, fit: BoxFit.cover)
+                        : Container(
+                            width: 70, height: 100,
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.book, color: AppTheme.primaryColor),
+                          ),
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(book?.title ?? 'Unknown Book', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 2),
-                      Text(book?.author ?? '', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12)),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Icon(isOverdue ? Icons.warning_rounded : Icons.schedule_rounded, color: dueDateColor, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          isOverdue ? 'Overdue by ${now.difference(dueDate).inDays} days' : (daysLeft == 0 ? 'Due today!' : 'Due in $daysLeft day${daysLeft == 1 ? '' : 's'}'),
-                          style: TextStyle(color: dueDateColor, fontSize: 12, fontWeight: FontWeight.w600),
+                      Text(
+                        book?.title ?? 'Unknown Book', 
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -0.5), 
+                        maxLines: 2, 
+                        overflow: TextOverflow.ellipsis
+                      ),
+                      const SizedBox(height: 4),
+                      Text(book?.author ?? '', style: TextStyle(fontSize: 13, color: (dark ? Colors.white70 : Colors.black54))),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: dueDateColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      ]),
-                      const SizedBox(height: 2),
-                      Text('Due: ${DateFormat('dd MMM yyyy').format(dueDate)}', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
-                      const SizedBox(height: 2),
-                      Text('Renewals: ${borrow.renewalCount}/${borrow.maxRenewals}', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(isOverdue ? Icons.warning_rounded : Icons.timer_rounded, color: dueDateColor, size: 14),
+                            const SizedBox(width: 6),
+                            Text(
+                              isOverdue ? 'Overdue' : (daysLeft == 0 ? 'Due Today' : '$daysLeft days left'),
+                              style: TextStyle(color: dueDateColor, fontSize: 11, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          if (_loading)
-            const Padding(padding: EdgeInsets.only(bottom: 12), child: CircularProgressIndicator(color: AppTheme.primaryColor))
-          else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _action(() => state.returnBook(borrow.id), '📚 Book returned!'),
-                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10), side: const BorderSide(color: AppTheme.primaryColor)),
-                      child: const Text('Return', style: TextStyle(fontSize: 13)),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: _loading ? null : () => _action(
+                      () => state.returnBook(borrow.id), 
+                      'Returned Successfully! 📚', 
+                      'Thank you for returning the book. Your contribution keeps LibHub running!', 
+                      Icons.check_circle_rounded, 
+                      AppTheme.successColor
+                    ),
+                    icon: const Icon(Icons.keyboard_return_rounded, size: 18),
+                    label: const Text('Return', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.errorColor,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
-                  if (borrow.renewalCount < borrow.maxRenewals) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => _action(() => state.renewBook(borrow.id), '🔄 Renewed successfully!'),
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)),
-                        child: const Text('Renew', style: TextStyle(fontSize: 13)),
+                ),
+                const SizedBox(width: 12),
+                if (borrow.renewalCount < borrow.maxRenewals)
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(colors: [AppTheme.primaryColor.withOpacity(0.8), AppTheme.primaryColor]),
+                        boxShadow: [
+                          BoxShadow(color: AppTheme.primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))
+                        ],
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: _loading ? null : () => _action(
+                          () => state.renewBook(borrow.id), 
+                          'Time Extended! 🔄', 
+                          'Your reading time has been renewed. Enjoy the chapters ahead!', 
+                          Icons.autorenew_rounded, 
+                          AppTheme.primaryColor
+                        ),
+                        icon: _loading 
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.update_rounded, size: 18),
+                        label: const Text('Renew', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
                       ),
                     ),
-                  ],
-                ],
-              ),
+                  )
+                else
+                  Expanded(
+                    child: Center(
+                      child: Text('Exceeded renewals', style: TextStyle(fontSize: 11, color: (dark ? Colors.white24 : Colors.black26), fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -221,72 +291,99 @@ class _ReserveCardState extends State<_ReserveCard> {
     final reserve = widget.reserve;
     final state = context.read<AppState>();
     final theme = Theme.of(context);
+    final dark = AppTheme.isDarkMode(context);
     final book = reserve.book;
     final isReady = reserve.status == 'ready';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isReady ? AppTheme.successColor.withOpacity(0.4) : theme.dividerColor),
+        color: dark ? const Color(0xFF1E1E2E) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isReady ? AppTheme.successColor.withOpacity(0.3) : (dark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+          width: 1.5,
+        ),
       ),
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
             child: book?.coverImage != null
-                ? Image.network(book!.coverImage!, width: 50, height: 68, fit: BoxFit.cover)
+                ? Image.network(book!.coverImage!, width: 60, height: 86, fit: BoxFit.cover)
                 : Container(
-                    width: 50, height: 68,
+                    width: 60, height: 86,
                     color: AppTheme.primaryColor.withOpacity(0.1),
                     alignment: Alignment.center,
-                    child: const Icon(Icons.menu_book_rounded, color: AppTheme.primaryColor, size: 24),
+                    child: const Icon(Icons.book, color: AppTheme.primaryColor, size: 28),
                   ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(book?.title ?? 'Unknown Book', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(book?.author ?? '', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12)),
-                const SizedBox(height: 6),
+                Text(
+                  book?.title ?? 'Unknown Book', 
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -0.5), 
+                  maxLines: 2, 
+                  overflow: TextOverflow.ellipsis
+                ),
+                const SizedBox(height: 4),
+                Text(book?.author ?? '', style: TextStyle(fontSize: 12, color: (dark ? Colors.white70 : Colors.black54))),
+                const SizedBox(height: 10),
                 Row(children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: (isReady ? AppTheme.successColor : AppTheme.secondaryColor).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(isReady ? 'Ready to Borrow' : 'Queue #${reserve.queuePosition}',
-                        style: TextStyle(color: isReady ? AppTheme.successColor : AppTheme.secondaryColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: Row(
+                      children: [
+                        Icon(isReady ? Icons.check_circle_rounded : Icons.person_pin_circle_rounded, size: 12, color: isReady ? AppTheme.successColor : AppTheme.secondaryColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          isReady ? 'READY TO BORROW' : 'QUEUE POSITION: #${reserve.queuePosition}',
+                          style: TextStyle(
+                            color: isReady ? AppTheme.successColor : AppTheme.secondaryColor, 
+                            fontSize: 10, 
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5
+                          )
+                        ),
+                      ],
+                    ),
                   ),
                 ]),
-                if (reserve.estimatedDate != null) ...[
-                  const SizedBox(height: 4),
-                  Text('Est: ${DateFormat('dd MMM').format(reserve.estimatedDate!)}', style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11)),
-                ],
               ],
             ),
           ),
           _loading
               ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.errorColor))
               : IconButton(
-                  icon: const Icon(Icons.close, color: AppTheme.errorColor, size: 22),
+                  icon: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: AppTheme.errorColor.withOpacity(0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: AppTheme.errorColor, size: 18),
+                  ),
                   onPressed: () async {
                     setState(() => _loading = true);
                     final result = await state.cancelReserve(reserve.id);
                     if (mounted) {
                       setState(() => _loading = false);
                       if (result['error'] != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result['error']), backgroundColor: AppTheme.errorColor));
+                        PremiumDialog.show(
+                          context: context, 
+                          title: 'Error', 
+                          message: result['error'],
+                          icon: Icons.error_outline_rounded,
+                          iconColor: AppTheme.errorColor,
+                        );
                       }
                     }
                   },
-                  tooltip: 'Cancel Reserve',
                 ),
         ],
       ),
@@ -302,15 +399,36 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final dark = AppTheme.isDarkMode(context);
     return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, size: 72, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.4)),
-        const SizedBox(height: 16),
-        Text(message, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        Text(sub, style: theme.textTheme.bodyMedium, textAlign: TextAlign.center),
-      ]),
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, 
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 80, color: AppTheme.primaryColor.withOpacity(0.6)),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              message, 
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5)
+            ),
+            const SizedBox(height: 12),
+            Text(
+              sub, 
+              style: TextStyle(fontSize: 15, color: (dark ? Colors.white70 : Colors.black54), height: 1.5), 
+              textAlign: TextAlign.center
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

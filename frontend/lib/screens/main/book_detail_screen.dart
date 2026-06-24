@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../models/book.dart';
+import '../../widgets/premium_dialog.dart';
 
 class BookDetailScreen extends StatefulWidget {
   final String bookId;
@@ -37,11 +38,25 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     final result = await context.read<AppState>().borrowBook(widget.bookId);
     if (mounted) {
       setState(() => _actionLoading = false);
-      final msg = result['success'] == true
-          ? '✅ Book borrowed successfully!'
-          : '❌ ${result['error'] ?? 'Request failed'}';
-      _showSnack(msg, result['success'] == true);
-      if (result['success'] == true) _loadBook();
+      if (result['success'] == true) {
+        PremiumDialog.show(
+          context: context,
+          title: 'Happy Reading! 📖',
+          message: 'The book has been added to your borrowed list. Enjoy!',
+          icon: Icons.check_circle_rounded,
+          iconColor: AppTheme.successColor,
+          confirmText: 'Awesome',
+        );
+        _loadBook();
+      } else {
+        PremiumDialog.show(
+          context: context,
+          title: 'Borrow Failed',
+          message: result['error'] ?? 'Could not borrow this book.',
+          icon: Icons.error_outline_rounded,
+          iconColor: AppTheme.errorColor,
+        );
+      }
     }
   }
 
@@ -50,21 +65,30 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     final result = await context.read<AppState>().reserveBook(widget.bookId);
     if (mounted) {
       setState(() => _actionLoading = false);
-      final msg = result['success'] == true
-          ? '✅ Reserved! You are #${result['queuePosition']} in queue.'
-          : '❌ ${result['error'] ?? 'Request failed'}';
-      _showSnack(msg, result['success'] == true);
-      if (result['success'] == true) _loadBook();
+      if (result['success'] == true) {
+        final pos = result['reserve']?['queue_position'] ?? '?';
+        PremiumDialog.show(
+          context: context,
+          title: 'Reserved! 🔖',
+          message: 'You have been added to the queue at position #$pos. We will notify you when it\'s ready.',
+          icon: Icons.bookmark_added_rounded,
+          iconColor: Colors.orange,
+          confirmText: 'Got it',
+        );
+        _loadBook();
+      } else {
+        PremiumDialog.show(
+          context: context,
+          title: 'Reserve Failed',
+          message: result['error'] ?? 'Could not reserve this book.',
+          icon: Icons.error_outline_rounded,
+          iconColor: AppTheme.errorColor,
+        );
+      }
     }
   }
 
-  void _showSnack(String msg, bool success) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
+  // Removed _showSnack as we now use PremiumDialog
 
   @override
   Widget build(BuildContext context) {
@@ -147,32 +171,72 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   Widget _buildBottomActions(AppState state, bool borrowed, bool reserved) {
     if (!state.isLoggedIn) return const SizedBox.shrink();
     
+    Color actionColor = AppTheme.primaryColor;
+    if (borrowed) actionColor = AppTheme.successColor;
+    if (reserved) actionColor = Colors.orange;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, -5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          )
+        ],
       ),
       child: Row(
         children: [
           if (borrowed)
-            const Expanded(child: _InfoBox(label: 'Borrowed', color: Colors.green))
+            const Expanded(child: _InfoBox(label: 'Already Borrowed', icon: Icons.library_books_rounded, color: AppTheme.successColor))
           else if (reserved)
-            const Expanded(child: _InfoBox(label: 'Reserved', color: Colors.orange))
+            const Expanded(child: _InfoBox(label: 'On Waiting List', icon: Icons.timer_rounded, color: Colors.orange))
           else if (_book!.availableCopies > 0)
             Expanded(
-              child: ElevatedButton(
-                onPressed: _actionLoading ? null : _borrow,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                child: _actionLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Borrow for Free', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF4F46E5)]),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _actionLoading ? null : _borrow,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: _actionLoading 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                      : const Text('Borrow Now', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                ),
               ),
             )
           else
             Expanded(
-              child: OutlinedButton(
-                onPressed: _actionLoading ? null : _reserve,
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: Colors.orange, width: 2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                child: _actionLoading ? const CircularProgressIndicator() : const Text('Reserve (Out of Stock)', style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: OutlinedButton(
+                  onPressed: _actionLoading ? null : _reserve,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    side: BorderSide.none,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  child: _actionLoading 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.orange, strokeWidth: 2)) 
+                      : const Text('Reserve Book', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                ),
               ),
             ),
         ],
@@ -207,12 +271,25 @@ class _Badge extends StatelessWidget {
 class _InfoBox extends StatelessWidget {
   final String label;
   final Color color;
-  const _InfoBox({required this.label, required this.color});
+  final IconData icon;
+  const _InfoBox({required this.label, required this.color, required this.icon});
+
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 16),
-    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: color)),
+    padding: const EdgeInsets.symmetric(vertical: 20),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.08), 
+      borderRadius: BorderRadius.circular(20), 
+      border: Border.all(color: color.withOpacity(0.2), width: 1.5)
+    ),
     alignment: Alignment.center,
-    child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 10),
+        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+      ],
+    ),
   );
 }

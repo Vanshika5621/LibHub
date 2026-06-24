@@ -47,7 +47,7 @@ class _LibHubAppState extends State<LibHubApp> {
     // Load if already logged in
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (sb.Supabase.instance.client.auth.currentUser != null) {
-        context.read<AppState>().loadUserData();
+        context.read<AppState>().loadUserData(silent: true);
       }
     });
   }

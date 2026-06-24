@@ -51,108 +51,88 @@ class _HomeScreenState extends State<HomeScreen> {
             // Updated Premium Header
             SliverToBoxAdapter(
               child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 56, 16, 20),
+                margin: const EdgeInsets.fromLTRB(16, 56, 16, 10),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32),
+                  borderRadius: BorderRadius.circular(36),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF4F46E5), Color(0xFF4338CA)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryColor.withOpacity(0.2),
+                      color: const Color(0xFF6366F1).withOpacity(0.4),
                       blurRadius: 30,
                       offset: const Offset(0, 15),
                     )
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
+                  borderRadius: BorderRadius.circular(36),
                   child: Stack(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(28),
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF2E3192), Color(0xFF1BFFFF)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                      Positioned(
+                        right: -30, top: -30,
+                        child: Container(
+                          width: 150, height: 150,
+                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
                         ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(32),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: Colors.white.withOpacity(0.3)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.auto_awesome, color: Colors.amber, size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        state.isLoggedIn
-                                            ? '${state.profile?.membershipTier.toUpperCase() ?? "FREE"} MEMBER'
-                                            : 'GUEST',
-                                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                _TierBadge(tier: state.profile?.membershipTier ?? 'FREE'),
                                 if (state.isLoggedIn)
-                                  Hero(
-                                    tag: 'profile_pic',
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 2),
-                                      ),
-                                      child: CircleAvatar(
-                                        radius: 20,
-                                        backgroundColor: Colors.white24,
-                                        child: Text(
-                                          state.profile != null && state.profile!.firstName.isNotEmpty ? state.profile!.firstName[0].toUpperCase() : 'U',
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                        ),
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: Colors.white,
+                                    child: CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: const Color(0xFF6366F1),
+                                      child: Text(
+                                        state.profile != null && state.profile!.firstName.isNotEmpty ? state.profile!.firstName[0].toUpperCase() : 'U',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                   ),
                               ],
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 32),
                             Text(
                               state.isLoggedIn
                                   ? _getTimeBasedGreeting(state.profile?.firstName ?? 'Reader')
                                   : 'Welcome to LibHub',
-                              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                              style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 8),
                             Text(
-                              'What will you read today?',
-                              style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16),
+                              'Discover your next favorite story',
+                              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 16, fontWeight: FontWeight.w500),
                             ),
-                            const SizedBox(height: 24),
-                            // Improved Search Bar
+                            const SizedBox(height: 32),
+                            // Search Container
                             Container(
-                              height: 54,
+                              height: 60,
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
+                                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))
                                 ],
                               ),
                               child: TextField(
                                 controller: _searchCtrl,
-                                style: const TextStyle(color: Colors.black87, fontSize: 15),
                                 decoration: InputDecoration(
-                                  hintText: 'Search for books...',
-                                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                                  prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF2E3192)),
+                                  hintText: 'Search books, authors, genres...',
+                                  hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w500),
+                                  prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF6366F1), size: 28),
                                   border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 20),
                                 ),
                                 onSubmitted: (v) {
                                   if (v.trim().isNotEmpty) {
@@ -165,6 +145,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // New: Quick Actions Horizontal List
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 0, 10),
+                child: SizedBox(
+                  height: 100,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      _QuickAction(icon: Icons.auto_stories, label: 'My Books', color: Colors.blue, onTap: () => state.setTabIndex(2)),
+                      _QuickAction(icon: Icons.qr_code_scanner_rounded, label: 'Scan', color: Colors.purple, onTap: () {}),
+                      _QuickAction(icon: Icons.stars_rounded, label: 'Premium', color: Colors.amber, onTap: () => state.setTabIndex(3)),
+                      _QuickAction(icon: Icons.support_agent_rounded, label: 'AI Help', color: Colors.green, onTap: () => state.setTabIndex(4)),
                     ],
                   ),
                 ),
@@ -408,6 +408,72 @@ class _BookCard extends StatelessWidget {
         gradient: LinearGradient(colors: [Color(0xFFE0EAFC), Color(0xFFCFDEF3)], begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: const Center(child: Icon(Icons.book_rounded, color: Colors.blueGrey, size: 48)),
+    );
+  }
+}
+class _TierBadge extends StatelessWidget {
+  final String tier;
+  const _TierBadge({required this.tier});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.auto_awesome, color: Colors.amber, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            '${tier.toUpperCase()} MEMBER',
+            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickAction({required this.icon, required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 90,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
     );
   }
 }

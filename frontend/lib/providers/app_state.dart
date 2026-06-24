@@ -6,6 +6,7 @@ import '../models/borrow.dart';
 import '../models/reserve.dart';
 import '../models/goal.dart';
 import '../models/notification.dart';
+import '../widgets/premium_dialog.dart';
 import '../models/chat_message.dart';
 import '../models/fine.dart';
 import '../models/payment.dart';
@@ -14,12 +15,24 @@ import '../services/payment_service.dart';
 import '../theme/app_theme.dart';
 
 class AppState extends ChangeNotifier {
-  final SupabaseService _service = SupabaseService();
+  late final SupabaseService _service;
+  late final PaymentService _paymentService;
+
   SupabaseService get service => _service;
+  PaymentService get paymentService => _paymentService;
 
   AppState() {
+    _service = SupabaseService();
+    _paymentService = PaymentService(_service);
     // Load public books immediately so guests see catalog without signing in
     reloadBooks();
+    _checkAuth();
+  }
+
+  void _checkAuth() {
+    if (isLoggedIn) {
+      loadUserData(silent: true);
+    }
   }
 
   // Auth
@@ -108,10 +121,10 @@ class AppState extends ChangeNotifier {
   }
 
   // Load initial data after login (Optimized for speed)
-  Future<void> loadUserData() async {
+  Future<void> loadUserData({bool silent = false}) async {
     if (!isLoggedIn) return;
     print('🚀 AppState: loading user data for ${currentUser?.email}');
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       // 1. Get Profile FIRST (Essential)
@@ -163,7 +176,7 @@ class AppState extends ChangeNotifier {
       print('❌ AppState Load Error: $e');
       setError(e.toString());
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -272,14 +285,20 @@ class AppState extends ChangeNotifier {
   // Renew
   Future<Map<String, dynamic>> renewBook(String borrowId) async {
     final result = await _service.renewBook(borrowId);
-    if (result['success'] == true) await reloadBorrows();
+    if (result['success'] == true) {
+      await reloadBorrows();
+      await reloadFines(); // Renewal might change fine calculations
+    }
     return result;
   }
 
   // Reserve
   Future<Map<String, dynamic>> reserveBook(String bookId) async {
     final result = await _service.reserveBook(bookId);
-    if (result['success'] == true) await reloadReserves();
+    if (result['success'] == true) {
+      await reloadReserves();
+      await reloadBooks(); // Availability might change for others
+    }
     return result;
   }
 
@@ -293,7 +312,7 @@ class AppState extends ChangeNotifier {
   // Mark notification as read
   Future<void> markNotificationRead(String id) async {
     await _service.markNotificationAsRead(id);
-    final idx = _notifications.indexWhere((n) => n.id == id);
+    final idx = _notifications.indexWhere((NotificationModel n) => n.id == id);
     if (idx >= 0) {
       final n = _notifications[idx];
       _notifications[idx] = NotificationModel(
@@ -361,28 +380,36 @@ class AppState extends ChangeNotifier {
   Future<void> upgradeMembership(String tier, double amount, BuildContext context) async {
     if (!isLoggedIn || _profile == null) return;
 
-    final paymentService = PaymentService(_service);
-    paymentService.onSuccess = (response) async {
+    const String purpose = 'membership_upgrade';
+    final Map<String, dynamic> metadata = {'tier': tier};
+
+    _paymentService.onSuccess = (response) async {
       // Show local loading or status
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Verifying payment... Please wait.'),
         duration: Duration(seconds: 2),
       ));
       
-      final verifyResult = await paymentService.verifyPayment(
+      final verifyResult = await _paymentService.verifyPayment(
         razorpayOrderId: response.orderId ?? '',
         razorpayPaymentId: response.paymentId ?? '',
         razorpaySignature: response.signature ?? '',
-        internalPaymentId: '',
+        amount: amount,
+        purpose: purpose, 
+        metadata: metadata, 
       );
 
       if (verifyResult['success'] == true) {
         await loadUserData();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Plan successfully upgraded to ${tier.toUpperCase()}! 🚀'),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-        ));
+        PremiumDialog.show(
+          context: context,
+          title: 'Congratulations! 🚀',
+          message: 'Your membership has been upgraded to ${tier.toUpperCase()}. Enjoy your new benefits!',
+          icon: Icons.stars_rounded,
+          iconColor: Colors.amber,
+          confirmText: 'Awesome',
+          onConfirm: () {},
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(verifyResult['error'] ?? 'Payment verification failed'),
@@ -390,19 +417,17 @@ class AppState extends ChangeNotifier {
           behavior: SnackBarBehavior.floating,
         ));
       }
-      paymentService.dispose();
     };
 
-    paymentService.onFailure = (response) {
+    _paymentService.onFailure = (response) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Payment failed: ${response.message}'),
         backgroundColor: AppTheme.errorColor,
         behavior: SnackBarBehavior.floating,
       ));
-      paymentService.dispose();
     };
 
-    final result = await paymentService.openCheckout(
+    final result = await _paymentService.openCheckout(
       amount: amount,
       paymentType: 'membership',
       membershipTier: tier,
@@ -424,27 +449,35 @@ class AppState extends ChangeNotifier {
   Future<void> payFine(String fineId, double amount, BuildContext context) async {
     if (!isLoggedIn || _profile == null) return;
 
-    final paymentService = PaymentService(_service);
-    paymentService.onSuccess = (response) async {
+    const String purpose = 'fine_payment';
+    final Map<String, dynamic> metadata = {'fineId': fineId};
+
+    _paymentService.onSuccess = (response) async {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Verifying fine payment... Please wait.'),
         duration: Duration(seconds: 2),
       ));
 
-      final verifyResult = await paymentService.verifyPayment(
+      final verifyResult = await _paymentService.verifyPayment(
         razorpayOrderId: response.orderId ?? '',
         razorpayPaymentId: response.paymentId ?? '',
         razorpaySignature: response.signature ?? '',
-        internalPaymentId: '',
+        amount: amount,
+        purpose: purpose, 
+        metadata: metadata, 
       );
 
       if (verifyResult['success'] == true) {
         await loadUserData();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Fine paid successfully! 💰'),
-          backgroundColor: AppTheme.successColor,
-          behavior: SnackBarBehavior.floating,
-        ));
+        PremiumDialog.show(
+          context: context,
+          title: 'Fine Paid! 💰',
+          message: 'Your overdue fine has been successfully settled. You can now borrow more books!',
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: Colors.green,
+          confirmText: 'Great',
+          onConfirm: () {},
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(verifyResult['error'] ?? 'Verification failed'),
@@ -452,19 +485,17 @@ class AppState extends ChangeNotifier {
           behavior: SnackBarBehavior.floating,
         ));
       }
-      paymentService.dispose();
     };
 
-    paymentService.onFailure = (response) {
+    _paymentService.onFailure = (response) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Payment failed: ${response.message}'),
         backgroundColor: AppTheme.errorColor,
         behavior: SnackBarBehavior.floating,
       ));
-      paymentService.dispose();
     };
 
-    final result = await paymentService.openCheckout(
+    final result = await _paymentService.openCheckout(
       amount: amount,
       paymentType: 'fine',
       fineId: fineId,

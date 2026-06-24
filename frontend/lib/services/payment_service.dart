@@ -20,15 +20,24 @@ class PaymentService {
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    print('✅ Razorpay Success: ${response.paymentId}');
     onSuccess?.call(response);
   }
 
   void _handlePaymentFailure(PaymentFailureResponse response) {
+    print('❌ Razorpay Failure: ${response.code} - ${response.message}');
     onFailure?.call(response);
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
+    print('💳 Razorpay External Wallet: ${response.walletName}');
     onExternalWallet?.call(response);
+  }
+
+  void clearHandlers() {
+    onSuccess = null;
+    onFailure = null;
+    onExternalWallet = null;
   }
 
   // Create order via backend
@@ -111,7 +120,9 @@ class PaymentService {
     required String razorpayOrderId,
     required String razorpayPaymentId,
     required String razorpaySignature,
-    required String internalPaymentId,
+    required double amount,
+    required String purpose,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       final response = await http.post(
@@ -125,7 +136,9 @@ class PaymentService {
           'razorpay_order_id': razorpayOrderId,
           'razorpay_payment_id': razorpayPaymentId,
           'razorpay_signature': razorpaySignature,
-          'paymentId': internalPaymentId,
+          'amount': amount,
+          'purpose': purpose,
+          'metadata': metadata,
         }),
       );
       return json.decode(response.body);
