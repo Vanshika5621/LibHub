@@ -166,7 +166,12 @@ class AppState extends ChangeNotifier {
 
     } catch (e) {
       print('❌ AppState Load Error: $e');
-      if (!silent) setError(e.toString());
+      if (!silent) {
+        String msg = e.toString().contains('SocketException') || e.toString().contains('Failed host lookup') || e.toString().contains('TimeoutException')
+            ? "Network Timeout: Could not reach server. Check your connection."
+            : e.toString();
+        setError(msg);
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -194,7 +199,12 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('❌ AppState Error loading books: $e');
-      if (!silent) setError(e.toString());
+      if (!silent) {
+        String msg = e.toString().contains('SocketException') || e.toString().contains('Failed host lookup') || e.toString().contains('TimeoutException')
+            ? "Connection lost. Please check internet."
+            : e.toString();
+        setError(msg);
+      }
     } finally {
       if (!silent) setLoading(false);
     }

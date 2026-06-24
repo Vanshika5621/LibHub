@@ -51,8 +51,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
     } catch (e) {
+      String msg = e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')
+          ? "Network Error: Please check your internet connection or if the database is online."
+          : e.toString().replaceAll('Exception: ', '');
+          
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = msg;
       });
     } finally {
       if (mounted) {
