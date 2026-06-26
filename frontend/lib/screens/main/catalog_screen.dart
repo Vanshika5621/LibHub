@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../models/book.dart';
@@ -129,9 +130,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
           // Grid View
           Expanded(
-            child: state.isLoading && state.books.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : state.books.isEmpty
+            child: (state.isLoading && state.books.isEmpty)
+                ? _buildShimmerGrid()
+                : (state.books.isEmpty && !state.isLoading)
                     ? _buildEmptyState()
                     : GridView.builder(
                         padding: const EdgeInsets.all(20),
@@ -216,6 +217,48 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
     );
   }
+
+  Widget _buildShimmerGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(20),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.65,
+      ),
+      itemCount: 6,
+      itemBuilder: (_, __) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(height: 14, width: double.infinity, color: Colors.white),
+          ),
+          const SizedBox(height: 6),
+          Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(height: 10, width: 80, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CatalogBookCard extends StatelessWidget {
@@ -244,22 +287,19 @@ class _CatalogBookCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    book.coverImage != null && book.coverImage!.isNotEmpty
-                        ? Image.network(book.coverImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder())
-                        : _buildPlaceholder(),
-                    if (onWishlistToggle != null)
-                      Positioned(
-                        top: 8, right: 8,
-                        child: GestureDetector(
-                          onTap: onWishlistToggle,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: Icon(isWishlisted ? Icons.favorite : Icons.favorite_border, color: Colors.red, size: 16),
-                          ),
-                        ),
-                      ),
-                  ],
+                     book.coverImage != null && book.coverImage!.isNotEmpty
+                         ? Image.network(book.coverImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder())
+                         : _buildPlaceholder(),
+                     if (book.availableCopies == 0)
+                       Positioned(
+                         top: 8, left: 8,
+                         child: Container(
+                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                           decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)),
+                           child: const Text('RESERVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                         ),
+                       ),
+                   ],
                 ),
               ),
             ),
@@ -267,13 +307,40 @@ class _CatalogBookCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(book.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
           Text(book.author, style: TextStyle(color: Colors.grey.shade500, fontSize: 11), maxLines: 1),
-          Row(
-            children: [
-              const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
-              const SizedBox(width: 4),
-              Text(book.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            ],
-          )
+           Row(
+             children: [
+               const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
+               const SizedBox(width: 4),
+               Text(book.rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+               const Spacer(),
+               if (book.availableCopies > 0)
+                  GestureDetector(
+                    onTap: onTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
+                      ),
+                      child: const Text('BORROW', style: TextStyle(color: AppTheme.primaryColor, fontSize: 9, fontWeight: FontWeight.w900)),
+                    ),
+                  )
+               else
+                  GestureDetector(
+                    onTap: onTap,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                      ),
+                      child: const Text('RESERVE', style: TextStyle(color: Colors.orange, fontSize: 9, fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+             ],
+           )
         ],
       ),
     );

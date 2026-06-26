@@ -156,6 +156,7 @@ router.post('/return', requireAuth, async (req, res) => {
       .eq('id', borrow.book_id)
       .single();
 
+
     if (book) {
       await serviceClient
         .from('books')
@@ -290,7 +291,10 @@ router.post('/reserve', requireAuth, async (req, res) => {
       .select()
       .single();
 
-    if (reserveError) return res.status(500).json({ error: 'Failed to create reservation' });
+    if (reserveError) {
+      console.error('Reservation DB Error:', reserveError);
+      return res.status(500).json({ error: `Reservation failed: ${reserveError.message}` });
+    }
 
     return res.json({ success: true, reserve: reserveData });
   } catch (error) {

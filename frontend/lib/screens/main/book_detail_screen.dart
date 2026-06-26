@@ -16,7 +16,8 @@ class BookDetailScreen extends StatefulWidget {
 class _BookDetailScreenState extends State<BookDetailScreen> {
   Book? _book;
   bool _loading = true;
-  bool _actionLoading = false;
+  bool _borrowLoading = false;
+  bool _reserveLoading = false;
 
   @override
   void initState() {
@@ -34,61 +35,61 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   }
 
   Future<void> _borrow() async {
-    setState(() => _actionLoading = true);
-    final result = await context.read<AppState>().borrowBook(widget.bookId);
+    setState(() => _borrowLoading = true);
+    final state = context.read<AppState>();
+    final result = await state.borrowBook(_book!.id);
     if (mounted) {
-      setState(() => _actionLoading = false);
+      setState(() => _borrowLoading = false);
       if (result['success'] == true) {
-        PremiumDialog.show(
-          context: context,
-          title: 'Happy Reading! 📖',
-          message: 'The book has been added to your borrowed list. Enjoy!',
-          icon: Icons.check_circle_rounded,
-          iconColor: AppTheme.successColor,
-          confirmText: 'Awesome',
+        _showModernSnackBar(
+          'Book borrowed successfully! 📖',
+          AppTheme.successColor,
         );
         _loadBook();
       } else {
-        PremiumDialog.show(
-          context: context,
-          title: 'Borrow Failed',
-          message: result['error'] ?? 'Could not borrow this book.',
-          icon: Icons.error_outline_rounded,
-          iconColor: AppTheme.errorColor,
+        _showModernSnackBar(
+          result['error'] ?? 'Could not borrow this book.',
+          AppTheme.errorColor,
         );
       }
     }
   }
 
   Future<void> _reserve() async {
-    setState(() => _actionLoading = true);
-    final result = await context.read<AppState>().reserveBook(widget.bookId);
+    setState(() => _reserveLoading = true);
+    final state = context.read<AppState>();
+    final result = await state.reserveBook(_book!.id);
     if (mounted) {
-      setState(() => _actionLoading = false);
+      setState(() => _reserveLoading = false);
       if (result['success'] == true) {
         final pos = result['reserve']?['queue_position'] ?? '?';
-        PremiumDialog.show(
-          context: context,
-          title: 'Reserved! 🔖',
-          message: 'You have been added to the queue at position #$pos. We will notify you when it\'s ready.',
-          icon: Icons.bookmark_added_rounded,
-          iconColor: Colors.orange,
-          confirmText: 'Got it',
+        _showModernSnackBar(
+          'Reserved! Position #$pos in queue. 🔖',
+          Colors.orange,
         );
         _loadBook();
       } else {
-        PremiumDialog.show(
-          context: context,
-          title: 'Reserve Failed',
-          message: result['error'] ?? 'Could not reserve this book.',
-          icon: Icons.error_outline_rounded,
-          iconColor: AppTheme.errorColor,
+        _showModernSnackBar(
+          result['error'] ?? 'Could not reserve this book.',
+          AppTheme.errorColor,
         );
       }
     }
   }
 
-  // Removed _showSnack as we now use PremiumDialog
+  void _showModernSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+        elevation: 10,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,12 +119,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     : Container(color: Colors.blueGrey, child: const Icon(Icons.book, size: 100, color: Colors.white)),
               ),
             ),
-            actions: [
-              IconButton(
-                icon: Icon(isWishlisted ? Icons.favorite : Icons.favorite_border, color: Colors.red),
-                onPressed: () => state.toggleWishlist(book.id),
-              ),
-            ],
+            actions: const [],
           ),
           SliverToBoxAdapter(
             child: Padding(
@@ -169,7 +165,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   }
 
   Widget _buildBottomActions(AppState state, bool borrowed, bool reserved) {
-    if (!state.isLoggedIn) return const SizedBox.shrink();
+    if (!state.isLoggedIn || _book == null) return const SizedBox.shrink();
+    final book = _book!;
     
     Color actionColor = AppTheme.primaryColor;
     if (borrowed) actionColor = AppTheme.successColor;
@@ -190,55 +187,100 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       child: Row(
         children: [
           if (borrowed)
-            const Expanded(child: _InfoBox(label: 'Already Borrowed', icon: Icons.library_books_rounded, color: AppTheme.successColor))
-          else if (reserved)
-            const Expanded(child: _InfoBox(label: 'On Waiting List', icon: Icons.timer_rounded, color: Colors.orange))
-          else if (_book!.availableCopies > 0)
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF4F46E5)]),
-                  boxShadow: [
+                  border: Border.all(color: AppTheme.errorColor.withOpacity(0.3)),
+                ),
+                child: TextButton.icon(
+                  onPressed: (_borrowLoading || _reserveLoading) ? null : () async {
+                    setState(() => _borrowLoading = true);
+                    final borrow = state.borrows.firstWhere((b) => b.bookId == book.id && b.status == 'active');
+                    final result = await state.returnBook(borrow.id);
+                    if (mounted) {
+                      setState(() => _borrowLoading = false);
+                      _showModernSnackBar(
+                        result['success'] == true ? 'Book returned successfully!' : (result['error'] ?? 'Error returning book'),
+                        result['success'] == true ? AppTheme.successColor : AppTheme.errorColor,
+                      );
+                      _loadBook();
+                    }
+                  },
+                  icon: _borrowLoading 
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.keyboard_return_rounded, color: AppTheme.errorColor),
+                  label: Text(_borrowLoading ? 'Returning...' : 'Return Book', style: const TextStyle(color: AppTheme.errorColor, fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 20)),
+                ),
+              ),
+            )
+          else ...[
+            // Borrow Button
+            Expanded(
+              flex: 2,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: book.availableCopies > 0 
+                      ? const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF4F46E5)])
+                      : null,
+                  color: book.availableCopies > 0 ? null : Colors.grey.shade200,
+                  boxShadow: book.availableCopies > 0 ? [
                     BoxShadow(color: const Color(0xFF6366F1).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))
-                  ],
+                  ] : [],
                 ),
                 child: ElevatedButton(
-                  onPressed: _actionLoading ? null : _borrow,
+                  onPressed: (_borrowLoading || _reserveLoading || book.availableCopies == 0) ? null : () async {
+                    setState(() => _borrowLoading = true);
+                    await _borrow();
+                    if (mounted) setState(() => _borrowLoading = false);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.grey,
                     shadowColor: Colors.transparent,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
-                  child: _actionLoading 
+                  child: _borrowLoading 
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                      : const Text('Borrow Now', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                      : Text(book.availableCopies > 0 ? 'Borrow Now' : 'Out of Stock', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                 ),
               ),
-            )
-          else
+            ),
+            const SizedBox(width: 12),
+            // Reserve Button
             Expanded(
+              flex: 1,
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                  color: reserved ? Colors.orange.withOpacity(0.1) : Colors.transparent,
                 ),
                 child: OutlinedButton(
-                  onPressed: _actionLoading ? null : _reserve,
+                  onPressed: (_borrowLoading || _reserveLoading) ? null : () async {
+                    setState(() => _reserveLoading = true);
+                    await _reserve();
+                    if (mounted) setState(() => _reserveLoading = false);
+                  },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.orange,
                     side: BorderSide.none,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
-                  child: _actionLoading 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.orange, strokeWidth: 2)) 
-                      : const Text('Reserve Book', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  child: _reserveLoading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.orange, strokeWidth: 2))
+                    : (reserved 
+                        ? const Icon(Icons.timer_rounded, color: Colors.orange)
+                        : const Text('Reserve', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -280,15 +322,14 @@ class _InfoBox extends StatelessWidget {
     decoration: BoxDecoration(
       color: color.withOpacity(0.08), 
       borderRadius: BorderRadius.circular(20), 
-      border: Border.all(color: color.withOpacity(0.2), width: 1.5)
     ),
     alignment: Alignment.center,
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 10),
-        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+        Icon(icon, color: color, size: 24),
+        const SizedBox(width: 12),
+        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: -0.5)),
       ],
     ),
   );

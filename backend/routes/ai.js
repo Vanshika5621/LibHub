@@ -1,231 +1,132 @@
 const express = require('express');
-const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { requireAuth, createServiceClient } = require('../utils/supabase');
 
 const router = express.Router();
 
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-  let apiKey = process.env.OPENAI_API_KEY.trim();
-  // Remove any trailing colons or whitespaces
-  if (apiKey.endsWith(':')) {
-    apiKey = apiKey.slice(0, -1).trim();
-  }
-  
-  if (apiKey && apiKey !== 'YOUR_OPENAI_API_KEY' && apiKey.startsWith('sk-')) {
-    try {
-      openai = new OpenAI({
-        apiKey: apiKey,
-      });
-      console.log('✅ OpenAI Client initialized successfully with cleaned API key.');
-    } catch (e) {
-      console.error('❌ Failed to initialize OpenAI client:', e.message);
-    }
+let genAI = null;
+let model = null;
+
+if (process.env.GEMINI_API_KEY) {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY.trim();
+    genAI = new GoogleGenerativeAI(apiKey);
+    model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    console.log('✅ Google Gemini Client initialized.');
+  } catch (e) {
+    console.error('❌ Failed to initialize Gemini:', e.message);
   }
 }
 
-const SYSTEM_PROMPT = `You are the LibHub Senior Librarian 📚. Your goal is to provide expert, friendly, and precise assistance to our library members. 
+const SYSTEM_INSTRUCTIONS = `You are the LibHub Gemini Librarian 2.0 📚. Your goal is to provide expert, friendly, and precise assistance to our library members. 
+ALWAYS identify yourself as 'Gemini Librarian 2.0' if asked for your name.
 
 CORE KNOWLEDGE:
 * **Borrowing Policy**:
-  - FREE Members: 2 books max, 7 days duration.
-  - PREMIUM Members (₹299/mo): 5 books max, 21 days duration. Priority reservations.
-  - VIP Members (₹599/mo): Unlimited books, 30 days duration. 2 fine waivers/month + Personal AI advisor.
-* **Fines**: Flat rate of ₹10 per day for overdue items.
-* **Navigation**: Tell users to look in 'Catalog' for new books, 'Borrowed' to return/renew, and 'Profile' to upgrade or pay fines.
+  - FREE Members: 2 books max, 7 days.
+  - PREMIUM Members (₹299/mo): 5 books max, 21 days.
+  - VIP Members (₹599/mo): Unlimited books, 30 days. Fine waivers available.
+* **Fines**: ₹10 per day for overdue items.
+* **Navigation**: 'Catalog' for new books, 'Borrowed' to return/renew, 'Profile' for fines/plans.
 
 RESPONSE STYLE:
-- Professional yet warm. Use emojis sparingly.
-- Use Markdown for structure (Bold, Lists, Headings).
-- If you don't know a specific book, suggest exploring the Catalog.
-- For inappropriate or off-topic queries, politely guide them back to library topics.`;
+- Professional and warm librarian tone.
+- Use Markdown structure.
+- If unsure about a specific book, suggest exploring the Catalog.`;
 
-function getLocalResponse(message) {
-  const msg = message.toLowerCase();
-  
-  if (msg.includes('limit') || msg.includes('how many') || msg.includes('maximum') || msg.includes('duration') || msg.includes('days')) {
-    return `### 📋 Borrowing Limits & Durations
-LibHub has the following borrowing limits based on your membership tier:
-* **Free Tier:** Up to **2 books** at a time for **7 days**.
-* **Premium Tier (Rs. 299/mo):** Up to **5 books** at a time for **21 days**.
-* **VIP Tier (Rs. 599/mo):** **Unlimited books** at a time for **30 days**.
+async function getLocalResponse(msg, serviceClient) {
+  const msgLower = msg.toLowerCase();
 
-If you've hit your limit, you can return a book to borrow a new one or upgrade your plan in the **Profile** section!`;
+  if (msgLower.includes('membership') || msgLower.includes('plan')) {
+    return `### 💳 Membership Plans\n* **Free**: 2 books, 7 days.\n* **Premium (₹299/mo)**: 5 books, 21 days.\n* **VIP (₹599/mo)**: Unlimited books, 30 days.`;
   }
   
-  if (msg.includes('fine') || msg.includes('late') || msg.includes('penalty') || msg.includes('fee') || msg.includes('charge')) {
-    return `### 💰 Late Fines Policy
-* The standard late return fine is **Rs. 10 per day** for all overdue books.
-* Fines accumulate automatically after the due date.
-* **VIP members** get **2 free fine waivers per month**!
-* Fines can be paid securely using cards, UPI, or wallets in the **Profile** section under **My Fines**.`;
+  if (msgLower.includes('fine')) {
+    return `### 💸 Fine Policy\nOverdue books incur a fine of **₹10 per day**. You can pay fines in the **Profile** tab.`;
   }
 
-  if (msg.includes('plan') || msg.includes('membership') || msg.includes('premium') || msg.includes('vip') || msg.includes('free') || msg.includes('cost') || msg.includes('price')) {
-    return `### 🌟 Membership Plans
-Choose a plan that fits your reading habits:
-1. **Free Plan (Rs. 0):**
-   * Limit: 2 books at a time
-   * Duration: 7 days per book
-2. **Premium Plan (Rs. 299/month):**
-   * Limit: 5 books at a time
-   * Duration: 21 days per book
-   * Features: Priority book reservation, Ad-free experience
-3. **VIP Plan (Rs. 599/month):**
-   * Limit: **Unlimited books**
-   * Duration: **30 days** per book
-   * Features: 2 fine waivers per month, personalized AI recommendations, priority support
-
-You can upgrade anytime using Razorpay in the **Profile** section.`;
+  if (msgLower.includes('borrow') || msgLower.includes('return')) {
+    return `### 🔄 Borrow & Return\n1. Find a book in **Catalog**.\n2. Tap **Borrow**.\n3. Return books from the **Borrowed** tab.`;
   }
 
-  if (msg.includes('info') || msg.includes('tell me about') || msg.includes('what is libhub') || msg.includes('about libhub')) {
-    return `### 🏫 Welcome to LibHub!
-LibHub is a modern digital library system designed to make reading accessible for everyone.
-
-**Core Features:**
-* 📚 **Borrow & Return:** Easily borrow hundreds of books and return them with one click.
-* 🔖 **Reservations:** If a book is busy, hold your spot in the queue.
-* 🤖 **AI Assistant:** Get instant support and book recommendations.
-* 💳 **Smart Plans:** Choose between Free, Premium, and VIP memberships for better limits.
-* 💰 **Fine Management:** Pay overdue fines directly within the app.
-
-Is there anything specific you'd like to know about our plans or policies?`;
+  if (msgLower.includes('tell me about') || msgLower.includes('info on') || msgLower.includes('who wrote')) {
+    let query = msgLower.replace('tell me about', '').replace('info on', '').replace('who wrote', '').replace('book', '').replace('tha', '').replace('the', '').trim();
+    if (query.length > 2) {
+      try {
+        const { data: books } = await serviceClient
+          .from('books')
+          .select('*')
+          .or(`title.ilike.%${query}%,author.ilike.%${query}%`)
+          .limit(1);
+          
+        if (books && books.length > 0) {
+          const b = books[0];
+          return `### 📖 Book Details: ${b.title}\n* **Author:** ${b.author}\n* **Genre:** ${b.genre}\n* **Rating:** ⭐ ${b.rating}\n* **Description:** ${b.description}`;
+        }
+      } catch (e) {}
+    }
   }
 
-  if (msg.includes('recommend') || msg.includes('suggest') || msg.includes('book') || msg.includes('read') || msg.includes('genre')) {
-    return `### 📚 Recommended Books for You
-Based on popular genres and top ratings, here are our top recommendations:
-1. **Atomic Habits** by *James Clear* (Self-Help) - ⭐ 4.8
-   * *A proven way to build good habits and break bad ones.*
-2. **Sapiens** by *Yuval Noah Harari* (History) - ⭐ 4.6
-   * *A brief history of humankind from the Stone Age to the present.*
-3. **The God of Small Things** by *Arundhati Roy* (Fiction) - ⭐ 4.5
-   * *A classic Indian fiction exploring childhood and societal laws.*
-4. **Project Hail Mary** by *Andy Weir* (Sci-Fi) - ⭐ 4.6
-   * *A gripping space adventure about saving humanity.*
+  return `### 📚 Welcome to LibHub AI Assistant
+Hello! I am your dedicated Librarian. How can I assist you today?
 
-Feel free to search for these titles in the **Books** tab!`;
-  }
+**You can ask me things like:**
+* 📖 "Tell me about the **Clean Code** book"
+* 🏷️ "What are the **membership plans**?"
+* 💸 "Tell me about **fines** and policies"
 
-  if (msg.includes('return') || msg.includes('how to return') || msg.includes('give back')) {
-    return `### 🔄 How to Return a Book
-Returning books on LibHub is simple:
-1. Go to the **Borrowed** tab (from the bottom navigation menu).
-2. Find the book you want to return.
-3. Click the **Return** button.
-4. Your inventory will update immediately, and you can borrow your next book!`;
-  }
-
-  if (msg.includes('reserve') || msg.includes('queue') || msg.includes('hold')) {
-    return `### 🔖 Book Reservations
-* If a book is currently unavailable (out of stock), you will see a **Reserve** button on its detail page.
-* Reserving a book places you in a waiting queue.
-* When the book is returned and it's your turn, you will be notified, and the book status will change to **Ready to Borrow**.
-* You can view and cancel your reservations in the **Borrowed** tab under the **Reserved** header.`;
-  }
-
-  return `### Hello! I'm your LibHub Assistant 🤖
-I can help you with:
-* **Borrowing limits** & durations ("What is the limit?")
-* **Late fine** calculations ("How much is the fine?")
-* **Membership plans** & pricing ("What is VIP?")
-* **Book recommendations** ("Recommend a book")
-* **Returning** or **reserving** books ("How to return?")
-
-What would you like to know today?`;
+*Note: Our AI service is currently very busy, but I can still help with general library rules!*`;
 }
 
-// POST /api/ai/chat
 router.post('/chat', requireAuth, async (req, res) => {
   const { messages } = req.body;
   const user = req.user;
   const serviceClient = createServiceClient();
+  const lastUserMessage = messages[messages.length - 1];
+  console.log('🤖 AI Request received:', lastUserMessage.content);
 
   try {
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'Messages array is required' });
+    if (!model) {
+      const fallbackReply = await getLocalResponse(lastUserMessage.content, serviceClient);
+      return res.json({ success: true, message: { role: 'assistant', content: fallbackReply } });
     }
 
-    const lastUserMessage = messages[messages.length - 1];
-
-    if (!openai) {
-      // Fallback for demo without API key
-      const fallbackReply = getLocalResponse(lastUserMessage.content);
-      
-      // Save User msg in background
-      await serviceClient.from('chat_history').insert({
-        user_id: user.id,
-        role: 'user',
-        content: lastUserMessage.content,
-      }).catch(() => {});
-
-      // Save AI msg in background
-      await serviceClient.from('chat_history').insert({
-        user_id: user.id,
-        role: 'assistant',
-        content: fallbackReply,
-      }).catch(() => {});
-
-      return res.json({ 
-        success: true, 
-        message: {
-          role: 'assistant',
-          content: fallbackReply
-        }
-      });
-    }
-
-    // Format for OpenAI
-    const aiMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.map(m => ({ role: m.role, content: m.content }))
-    ];
-
-    // Wrap API call in a 4-second timeout promise to keep it fast
-    const apiCall = openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: aiMessages,
-      temperature: 0.7,
-      max_tokens: 500,
-    });
-
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('OpenAI Request Timeout')), 4000)
-    );
-
-    const response = await Promise.race([apiCall, timeout]);
-    const aiMessage = response.choices[0].message;
-
-    // Save User msg in background
-    await serviceClient.from('chat_history').insert({
-      user_id: user.id,
-      role: 'user',
-      content: lastUserMessage.content,
-    }).catch(() => {});
-
-    // Save AI msg in background
-    await serviceClient.from('chat_history').insert({
-      user_id: user.id,
-      role: 'assistant',
-      content: aiMessage.content,
-    }).catch(() => {});
-
-    return res.json({ success: true, message: aiMessage });
-  } catch (error) {
-    console.error('AI chat error (falling back to local response):', error.message);
+    const history = messages.slice(0, -1).map(m => ({ 
+      role: m.role === 'user' ? 'user' : 'model', 
+      parts: [{ text: m.content }] 
+    }));
     
-    // In case of timeout or API failure, return local responder immediately
-    const lastUserMessage = messages ? messages[messages.length - 1] : { content: '' };
-    const fallbackReply = getLocalResponse(lastUserMessage.content);
+    // Ensure history roles alternate correctly for Gemini SDK
+    const chat = model.startChat({ history });
 
-    return res.json({ 
-      success: true, 
-      message: {
-        role: 'assistant',
-        content: fallbackReply
+    let result;
+    let retries = 3;
+    
+    while (retries > 0) {
+      try {
+        result = await chat.sendMessage(lastUserMessage.content);
+        break; 
+      } catch (err) {
+        if (err.message.includes('503') || err.message.includes('Service Unavailable') || err.message.includes('busy')) {
+          console.log(`⚠️ Gemini busy, retrying... (${retries} left)`);
+          retries--;
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          throw err;
+        }
       }
-    });
+    }
+
+    if (!result) throw new Error("Gemini service is too busy right now.");
+
+    const response = await result.response;
+    const aiText = response.text();
+
+    return res.json({ success: true, message: { role: 'assistant', content: aiText } });
+  } catch (error) {
+    console.error('Gemini API Error:', error.message);
+    const fallbackReply = await getLocalResponse(lastUserMessage.content, serviceClient);
+    return res.json({ success: true, message: { role: 'assistant', content: fallbackReply } });
   }
 });
 

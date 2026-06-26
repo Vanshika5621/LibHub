@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import '../../providers/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -38,7 +39,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final theme = Theme.of(context);
     final goal = state.readingGoal;
 
     return Scaffold(
@@ -151,25 +151,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // New: Quick Actions Horizontal List
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 0, 10),
-                child: SizedBox(
-                  height: 100,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      _QuickAction(icon: Icons.auto_stories, label: 'My Books', color: Colors.blue, onTap: () => state.setTabIndex(2)),
-                      _QuickAction(icon: Icons.qr_code_scanner_rounded, label: 'Scan', color: Colors.purple, onTap: () {}),
-                      _QuickAction(icon: Icons.stars_rounded, label: 'Premium', color: Colors.amber, onTap: () => state.setTabIndex(3)),
-                      _QuickAction(icon: Icons.support_agent_rounded, label: 'AI Help', color: Colors.green, onTap: () => state.setTabIndex(4)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
 
             // Quick Stats & Stats section
             if (state.isLoggedIn)
@@ -193,21 +174,23 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 280,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(left: 16),
-                  itemCount: state.books.where((b) => b.isTrending).length,
-                  itemBuilder: (ctx, i) {
-                    final list = state.books.where((b) => b.isTrending).toList();
-                    return _BookCard(
-                      book: list[i],
-                      isWishlisted: state.wishlistIds.contains(list[i].id),
-                      onWishlistToggle: state.isLoggedIn ? () => state.toggleWishlist(list[i].id) : null,
-                      onTap: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: list[i].id))),
-                    );
-                  },
-                ),
+                child: state.isLoading && state.books.isEmpty
+                    ? _buildShimmerList()
+                    : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.only(left: 16),
+                        itemCount: state.books.where((b) => b.isTrending).length,
+                        itemBuilder: (ctx, i) {
+                          final list = state.books.where((b) => b.isTrending).toList();
+                          return _BookCard(
+                            book: list[i],
+                            isWishlisted: state.wishlistIds.contains(list[i].id),
+                            onWishlistToggle: state.isLoggedIn ? () => state.toggleWishlist(list[i].id) : null,
+                            onTap: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: list[i].id))),
+                          );
+                        },
+                      ),
               ),
             ),
 
@@ -215,21 +198,23 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 280,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(left: 16),
-                  itemCount: state.books.where((b) => b.isNewArrival).length,
-                  itemBuilder: (ctx, i) {
-                    final list = state.books.where((b) => b.isNewArrival).toList();
-                    return _BookCard(
-                      book: list[i],
-                      isWishlisted: state.wishlistIds.contains(list[i].id),
-                      onWishlistToggle: state.isLoggedIn ? () => state.toggleWishlist(list[i].id) : null,
-                      onTap: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: list[i].id))),
-                    );
-                  },
-                ),
+                child: state.isLoading && state.books.isEmpty
+                    ? _buildShimmerList()
+                    : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.only(left: 16),
+                        itemCount: state.books.where((b) => b.isNewArrival).length,
+                        itemBuilder: (ctx, i) {
+                          final list = state.books.where((b) => b.isNewArrival).toList();
+                          return _BookCard(
+                            book: list[i],
+                            isWishlisted: state.wishlistIds.contains(list[i].id),
+                            onWishlistToggle: state.isLoggedIn ? () => state.toggleWishlist(list[i].id) : null,
+                            onTap: () => Navigator.push(ctx, MaterialPageRoute(builder: (_) => BookDetailScreen(bookId: list[i].id))),
+                          );
+                        },
+                      ),
               ),
             ),
 
@@ -272,6 +257,47 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 120)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 16),
+      itemCount: 4,
+      itemBuilder: (_, __) => Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Shimmer.fromColors(
+                baseColor: Colors.grey[300]!,
+                highlightColor: Colors.grey[100]!,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(height: 14, width: double.infinity, color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(height: 10, width: 100, color: Colors.white),
+            ),
           ],
         ),
       ),
@@ -375,17 +401,14 @@ class _BookCard extends StatelessWidget {
                       book.coverImage != null && book.coverImage!.isNotEmpty
                           ? Image.network(book.coverImage!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildPlaceholder())
                           : _buildPlaceholder(),
-                      if (onWishlistToggle != null)
+                      if (book.availableCopies == 0)
                         Positioned(
-                          top: 12,
-                          right: 12,
-                          child: InkWell(
-                            onTap: onWishlistToggle,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]),
-                              child: Icon(isWishlisted ? Icons.favorite : Icons.favorite_border, color: Colors.red, size: 18),
-                            ),
+                          top: 10,
+                          left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)),
+                            child: const Text('RESERVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                           ),
                         ),
                     ],
@@ -395,7 +418,28 @@ class _BookCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(book.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(book.author, style: TextStyle(color: Colors.grey.shade500, fontSize: 12), maxLines: 1),
+            Row(
+              children: [
+                Text(book.author, style: TextStyle(color: Colors.grey.shade500, fontSize: 12), maxLines: 1),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (book.availableCopies > 0 ? AppTheme.primaryColor : Colors.orange).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: (book.availableCopies > 0 ? AppTheme.primaryColor : Colors.orange).withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    book.availableCopies > 0 ? 'BORROW' : 'RESERVE', 
+                    style: TextStyle(
+                      color: book.availableCopies > 0 ? AppTheme.primaryColor : Colors.orange, 
+                      fontSize: 9, 
+                      fontWeight: FontWeight.w900
+                    )
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -439,41 +483,3 @@ class _TierBadge extends StatelessWidget {
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickAction({required this.icon, required this.label, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 90,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
-}

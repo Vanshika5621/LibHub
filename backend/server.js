@@ -38,6 +38,14 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log('✨ Gemini Assistant is ready!');
+    
+    // One-time cleanup for mock books
+    const { createServiceClient } = require('./utils/supabase');
+    const serviceClient = createServiceClient();
+    serviceClient.from('books').delete().ilike('title', '%Knowledge of%').then(() => {
+      console.log('🧹 Cleaned mock books from database!');
+    });
   });
 }
 

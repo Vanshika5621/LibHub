@@ -99,12 +99,14 @@ class _BorrowCardState extends State<_BorrowCard> {
     if (mounted) {
       setState(() => _loading = false);
       final ok = result['success'] == true;
-      PremiumDialog.show(
-        context: context,
-        title: ok ? title : 'Action Failed',
-        message: ok ? successMsg : (result['error'] ?? 'An unexpected error occurred.'),
-        icon: ok ? icon : Icons.error_outline_rounded,
-        iconColor: ok ? color : AppTheme.errorColor,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? successMsg : (result['error'] ?? 'An unexpected error occurred.'), style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: ok ? color : AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        ),
       );
     }
   }
@@ -218,7 +220,9 @@ class _BorrowCardState extends State<_BorrowCard> {
                       Icons.check_circle_rounded, 
                       AppTheme.successColor
                     ),
-                    icon: const Icon(Icons.keyboard_return_rounded, size: 18),
+                    icon: _loading 
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppTheme.errorColor, strokeWidth: 2)) 
+                        : const Icon(Icons.keyboard_return_rounded, size: 18),
                     label: const Text('Return', style: TextStyle(fontWeight: FontWeight.bold)),
                     style: TextButton.styleFrom(
                       foregroundColor: AppTheme.errorColor,
@@ -374,12 +378,12 @@ class _ReserveCardState extends State<_ReserveCard> {
                     if (mounted) {
                       setState(() => _loading = false);
                       if (result['error'] != null) {
-                        PremiumDialog.show(
-                          context: context, 
-                          title: 'Error', 
-                          message: result['error'],
-                          icon: Icons.error_outline_rounded,
-                          iconColor: AppTheme.errorColor,
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(result['error'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                            backgroundColor: AppTheme.errorColor,
+                            behavior: SnackBarBehavior.floating,
+                          ),
                         );
                       }
                     }

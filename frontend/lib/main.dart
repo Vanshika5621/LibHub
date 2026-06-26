@@ -7,9 +7,12 @@ import 'providers/app_state.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main/navigation_holder.dart';
 
+import 'services/cache_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await CacheService.init();
   await sb.Supabase.initialize(
     url: AppConstants.supabaseUrl,
     anonKey: AppConstants.supabaseAnonKey,
@@ -38,7 +41,9 @@ class _LibHubAppState extends State<LibHubApp> {
     sb.Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
       if (event == sb.AuthChangeEvent.signedIn) {
-        context.read<AppState>().loadUserData();
+        final state = context.read<AppState>();
+        state.refreshAuth();
+        state.loadUserData(silent: true);
       } else if (event == sb.AuthChangeEvent.signedOut) {
         context.read<AppState>().signOut();
       }

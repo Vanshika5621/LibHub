@@ -7,7 +7,7 @@ class AppConstants {
   // For iOS Simulator: http://localhost:3000
   // For Android Emulator: http://10.0.2.2:3000
   // For real devices: Use production URL
-  static const String backendBaseUrl = 'https://lib-hub-one.vercel.app';
+  static const String backendBaseUrl = 'http://10.0.2.2:3000';
 
   // Razorpay Test Key
   static const String razorpayKeyId = 'rzp_test_T0FDfxHZBaya5Q';

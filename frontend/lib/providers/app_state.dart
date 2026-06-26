@@ -12,6 +12,7 @@ import '../models/fine.dart';
 import '../models/payment.dart';
 import '../services/supabase_service.dart';
 import '../services/payment_service.dart';
+import '../services/cache_service.dart';
 import '../theme/app_theme.dart';
 
 class AppState extends ChangeNotifier {
@@ -24,9 +25,25 @@ class AppState extends ChangeNotifier {
   AppState() {
     _service = SupabaseService();
     _paymentService = PaymentService(_service);
+    _loadFromCache();
     // Load public books silently so guests see catalog immediately
     reloadBooks(silent: true);
     _checkAuth();
+  }
+
+  void _loadFromCache() {
+    _profile = CacheService.getProfile();
+    _books = CacheService.getBooks();
+    _borrows = CacheService.getBorrows();
+    _reserves = CacheService.getReserves();
+    _fines = CacheService.getFines();
+    _notifications = CacheService.getNotifications();
+    _isDarkMode = CacheService.getDarkMode();
+    notifyListeners();
+  }
+
+  void refreshAuth() {
+    notifyListeners();
   }
 
   void _checkAuth() {
@@ -106,6 +123,7 @@ class AppState extends ChangeNotifier {
   List<Book> get newArrivals => _books.where((b) => b.isNewArrival).take(6).toList();
 
   void setLoading(bool v) {
+    if (_isLoading == v) return;
     _isLoading = v;
     notifyListeners();
   }
@@ -117,14 +135,20 @@ class AppState extends ChangeNotifier {
 
   void toggleDarkMode() {
     _isDarkMode = !_isDarkMode;
+    CacheService.saveDarkMode(_isDarkMode);
     notifyListeners();
   }
 
   // Load initial data after login (Optimized for speed)
-  Future<void> loadUserData({bool silent = false}) async {
+  Future<void> loadUserData({bool silent = true}) async {
     if (!isLoggedIn) return;
-    print('🚀 AppState: loading user data for ${currentUser?.email}');
-    if (!silent) setLoading(true);
+    print('🚀 AppState: loading user data for ${currentUser?.email} (silent: $silent)');
+    
+    // If we have cached data, always load silently in background
+    final bool hasCache = _profile != null;
+    final bool effectiveSilent = silent || hasCache;
+
+    if (!effectiveSilent) setLoading(true);
     setError(null);
     try {
       // 1. Get Profile FIRST (Essential)
@@ -149,31 +173,32 @@ class AppState extends ChangeNotifier {
       if (_profile == null) {
         throw Exception('Could not sync library profile. Please check internet connection.');
       }
-
+      
+      CacheService.saveProfile(_profile);
       notifyListeners();
 
       // 2. Load EVERYTHING ELSE in parallel, but don't block the UI
-      _service.getBooks().then((v) { _books = v; notifyListeners(); }).catchError((_) {});
-      _service.getUserBorrows().then((v) { _borrows = v; notifyListeners(); }).catchError((_) {});
-      _service.getUserReserves().then((v) { _reserves = v; notifyListeners(); }).catchError((_) {});
+      _service.getBooks().then((v) { _books = v; CacheService.saveBooks(v); notifyListeners(); }).catchError((_) {});
+      _service.getUserBorrows().then((v) { _borrows = v; CacheService.saveBorrows(v); notifyListeners(); }).catchError((_) {});
+      _service.getUserReserves().then((v) { _reserves = v; CacheService.saveReserves(v); notifyListeners(); }).catchError((_) {});
       _service.getWishlistIds().then((v) { _wishlistIds = v; notifyListeners(); }).catchError((_) {});
-      _service.getUserFines().then((v) { _fines = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserFines().then((v) { _fines = v; CacheService.saveFines(v); notifyListeners(); }).catchError((_) {});
       _service.getUserPayments().then((v) { _payments = v; notifyListeners(); }).catchError((_) {});
       _service.getReadingGoal(DateTime.now().year).then((v) { _readingGoal = v; notifyListeners(); }).catchError((_) {});
-      _service.getUserNotifications().then((v) { _notifications = v; notifyListeners(); }).catchError((_) {});
+      _service.getUserNotifications().then((v) { _notifications = v; CacheService.saveNotifications(v); notifyListeners(); }).catchError((_) {});
       _service.getNotificationPreferences().then((v) { _notificationPrefs = v; notifyListeners(); }).catchError((_) {});
       _service.getChatMessages().then((v) { _chatMessages = v; notifyListeners(); }).catchError((_) {});
 
     } catch (e) {
       print('❌ AppState Load Error: $e');
-      if (!silent) {
+      if (!effectiveSilent) {
         String msg = e.toString().contains('SocketException') || e.toString().contains('Failed host lookup') || e.toString().contains('TimeoutException')
             ? "Network Timeout: Could not reach server. Check your connection."
             : e.toString();
         setError(msg);
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (!effectiveSilent) setLoading(false);
     }
   }
 
@@ -183,10 +208,14 @@ class AppState extends ChangeNotifier {
     String genre = '',
     bool onlyAvailable = false,
     String sortBy = 'rating',
-    bool silent = false,
+    bool silent = true,
   }) async {
     print('📦 AppState: reloadBooks started for genre: $genre (silent: $silent)');
-    if (!silent) setLoading(true);
+    
+    // If we have books in memory, do background refresh
+    final bool effectiveSilent = silent || _books.isNotEmpty;
+
+    if (!effectiveSilent) setLoading(true);
     setError(null);
     try {
       _books = await _service.getBooks(
@@ -196,17 +225,19 @@ class AppState extends ChangeNotifier {
         sortBy: sortBy,
       ).timeout(const Duration(seconds: 15));
       print('📚 AppState: ${ _books.length} books loaded successfully');
+      
+      CacheService.saveBooks(_books);
       notifyListeners();
     } catch (e) {
       print('❌ AppState Error loading books: $e');
-      if (!silent) {
+      if (!effectiveSilent) {
         String msg = e.toString().contains('SocketException') || e.toString().contains('Failed host lookup') || e.toString().contains('TimeoutException')
             ? "Connection lost. Please check internet."
             : e.toString();
         setError(msg);
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (!effectiveSilent) setLoading(false);
     }
   }
 
@@ -214,6 +245,7 @@ class AppState extends ChangeNotifier {
   Future<void> reloadBorrows() async {
     try {
       _borrows = await _service.getUserBorrows();
+      CacheService.saveBorrows(_borrows);
       notifyListeners();
     } catch (_) {}
   }
@@ -222,6 +254,7 @@ class AppState extends ChangeNotifier {
   Future<void> reloadReserves() async {
     try {
       _reserves = await _service.getUserReserves();
+      CacheService.saveReserves(_reserves);
       notifyListeners();
     } catch (_) {}
   }
@@ -230,6 +263,7 @@ class AppState extends ChangeNotifier {
   Future<void> reloadFines() async {
     try {
       _fines = await _service.getUserFines();
+      CacheService.saveFines(_fines);
       notifyListeners();
     } catch (_) {}
   }
@@ -534,6 +568,7 @@ class AppState extends ChangeNotifier {
   // Sign Out
   Future<void> signOut() async {
     await _service.signOut();
+    await CacheService.clearAuthCache();
     _profile = null;
     _books = [];
     _borrows = [];
